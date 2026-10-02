@@ -57,6 +57,30 @@ describe("Supabase auth lifecycle", () => {
     expect(markReady).toHaveBeenCalledOnce();
   });
 
+  it("does not apply a session refresh that finishes after sign-out", async () => {
+    let resolveRefresh!: () => void;
+    const refresh = vi.fn(() => new Promise<void>((resolve) => {
+      resolveRefresh = resolve;
+    }));
+    const clearRecords = vi.fn();
+    const markReady = vi.fn();
+    const handle = createSupabaseAuthHandler({
+      isMounted: () => true,
+      refresh,
+      markReady,
+      clearRecords,
+      setError: vi.fn(),
+    });
+
+    const sessionRefresh = handle("SIGNED_IN");
+    await handle("SIGNED_OUT");
+    resolveRefresh();
+    await sessionRefresh;
+
+    expect(clearRecords).toHaveBeenCalledOnce();
+    expect(markReady).toHaveBeenCalledOnce();
+  });
+
   it("does not update state after unmount and unsubscribes auth events", () => {
     let mounted = true;
     const unsubscribe = vi.fn();

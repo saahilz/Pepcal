@@ -20,20 +20,23 @@ export function createSupabaseAuthHandler({
   clearRecords,
   setError,
 }: AuthLifecycle): (event: SupabaseAuthEvent) => Promise<void> {
+  let generation = 0;
+
   return async (event) => {
     if (!isMounted()) return;
+    const eventGeneration = ++generation;
     if (event === "SIGNED_OUT") {
       clearRecords();
-      if (isMounted()) markReady();
+      if (isMounted() && eventGeneration === generation) markReady();
       return;
     }
     if (!["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) return;
 
     try {
       await refresh();
-      if (isMounted()) markReady();
+      if (isMounted() && eventGeneration === generation) markReady();
     } catch (error) {
-      if (isMounted()) setError(error);
+      if (isMounted() && eventGeneration === generation) setError(error);
     }
   };
 }
