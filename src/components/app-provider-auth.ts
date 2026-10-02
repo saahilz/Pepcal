@@ -1,4 +1,4 @@
-import type { AuthChangeEvent, SupabaseClient } from "@supabase/supabase-js";
+import type { AuthChangeEvent } from "@supabase/supabase-js";
 
 export type SupabaseAuthEvent = Extract<
   AuthChangeEvent,
@@ -38,12 +38,24 @@ export function createSupabaseAuthHandler({
   };
 }
 
+type AuthClient = {
+  auth: {
+    onAuthStateChange: (
+      callback: (event: AuthChangeEvent) => void
+    ) => { data?: { subscription?: { unsubscribe: () => void } } };
+  };
+};
+
+function isHandledAuthEvent(event: AuthChangeEvent): event is SupabaseAuthEvent {
+  return ["INITIAL_SESSION", "SIGNED_IN", "SIGNED_OUT", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event);
+}
+
 export function subscribeToSupabaseAuth(
-  client: Pick<SupabaseClient, "auth">,
+  client: AuthClient,
   handler: (event: SupabaseAuthEvent) => Promise<void>
 ): () => void {
   const result = client.auth.onAuthStateChange((event) => {
-    void handler(event);
+    if (isHandledAuthEvent(event)) void handler(event);
   });
   return () => result.data?.subscription?.unsubscribe();
 }
