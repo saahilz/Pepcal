@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createSupabaseAuthHandler, subscribeToSupabaseAuth } from "./app-provider-auth";
+import {
+  createSupabaseAuthHandler,
+  subscribeAndRefreshSupabaseAuth,
+  subscribeToSupabaseAuth,
+} from "./app-provider-auth";
 
 describe("Supabase auth lifecycle", () => {
   it("refreshes an unauthenticated initial session before marking ready", async () => {
@@ -99,5 +103,34 @@ describe("Supabase auth lifecycle", () => {
     stop();
 
     expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it("subscribes before the initial refresh so the callback session cannot be missed", async () => {
+    const order: string[] = [];
+    const authCallback = vi.fn((event: string) => {
+      order.push(`event:${event}`);
+    });
+    const client = {
+      auth: {
+        onAuthStateChange: vi.fn((callback: (event: "INITIAL_SESSION") => void) => {
+          order.push("subscribe");
+          callback("INITIAL_SESSION");
+          return { data: { subscription: { unsubscribe: vi.fn() } } };
+        }),
+      },
+    };
+
+    await subscribeAndRefreshSupabaseAuth(
+      client,
+      (event) => {
+        authCallback(event);
+        return Promise.resolve();
+      },
+      async () => {
+        order.push("refresh");
+      }
+    );
+
+    expect(order).toEqual(["subscribe", "event:INITIAL_SESSION", "refresh"]);
   });
 });

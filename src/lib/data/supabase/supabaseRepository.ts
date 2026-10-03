@@ -184,7 +184,12 @@ function toWeight(r: DbWeightEntry): WeightEntry {
 }
 
 function errorOrThrow(error: unknown): never {
-  throw error instanceof Error ? error : new Error(String(error));
+  if (error instanceof Error) throw error;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) throw new Error(message);
+  }
+  throw new Error("Supabase request failed. Check the project configuration and try again.");
 }
 
 /* ----------------------------- repository ---------------------------- */
@@ -214,6 +219,23 @@ export const supabaseRepository: Repository = {
       options: { redirectTo: window.location.origin },
     });
     if (error) errorOrThrow(error);
+  },
+
+  async signInWithEmail(email: string, password: string): Promise<void> {
+    const { error } = await getSupabase().auth.signInWithPassword({ email, password });
+    if (error) errorOrThrow(error);
+  },
+
+  async signUpWithEmail(
+    email: string,
+    password: string
+  ): Promise<"signed-in" | "confirmation-required"> {
+    const {
+      data: { session },
+      error,
+    } = await getSupabase().auth.signUp({ email, password });
+    if (error) errorOrThrow(error);
+    return session ? "signed-in" : "confirmation-required";
   },
 
   /* ---- vials ---- */

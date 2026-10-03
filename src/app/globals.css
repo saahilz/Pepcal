@@ -1,0 +1,603 @@
+@import "tailwindcss";
+
+/* Class-based dark mode: <html class="dark"> is toggled by the theme
+   provider, which also honours the OS preference when the user hasn't
+   chosen explicitly. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Warm & soft theme.
+ * Neutrals lean warm so white cards sit on a calm ivory ground; the accent is a
+ * calm teal/emerald. Everything else consumes these tokens, so restyling a page
+ * is just changing them here.
+ */
+:root {
+  --background: #f7f8f4;
+  --surface: #fffefa;
+  --surface-2: #edf3ef;
+  --foreground: #17322d;
+  --muted: #5b6c66;
+  --subtle: #84938c;
+  --line: #e1ebe6;
+  --line-strong: #c7d6ce;
+
+  --brand: #137c71;
+  --brand-strong: #0b625b;
+  --brand-soft: #dff2eb;
+  --brand-fg: #ffffff;
+
+  --ok: #2f7d54;
+  --ok-soft: #e4f3e8;
+  --warn: #9a6700;
+  --warn-soft: #fbeedc;
+  --bad: #b03a30;
+  --bad-soft: #fae7e3;
+  --info: #3566b4;
+  --info-soft: #e3ebf7;
+
+  --glow: rgba(19, 124, 113, 0.08);
+  --shadow-card: 0 1px 2px rgb(23 50 45 / 0.04), 0 16px 30px -18px rgb(23 50 45 / 0.18);
+  --shadow-pop: 0 8px 18px -8px rgb(23 50 45 / 0.16), 0 24px 44px -18px rgb(23 50 45 / 0.2);
+  --shadow-lift: 0 8px 16px -10px rgb(23 50 45 / 0.16), 0 28px 48px -22px rgb(23 50 45 / 0.24);
+}
+
+.dark {
+  --background: #0d1714;
+  --surface: #15221d;
+  --surface-2: #1d2d26;
+  --foreground: #e6f0eb;
+  --muted: #a4b6ad;
+  --subtle: #74877d;
+  --line: #2a3b32;
+  --line-strong: #3d5348;
+
+  --brand: #42c8b3;
+  --brand-strong: #70e0ca;
+  --brand-soft: #103b32;
+  --brand-fg: #06261f;
+
+  --ok: #6bd18c;
+  --ok-soft: #173523;
+  --warn: #f2b44c;
+  --warn-soft: #38290e;
+  --bad: #f28b7c;
+  --bad-soft: #431a16;
+  --info: #7da6f0;
+  --info-soft: #16273f;
+
+  --glow: rgba(66, 200, 179, 0.07);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 34px -18px rgb(0 0 0 / 0.56);
+  --shadow-pop: 0 8px 18px -8px rgb(0 0 0 / 0.45), 0 24px 44px -16px rgb(0 0 0 / 0.62);
+  --shadow-lift: 0 10px 18px -10px rgb(0 0 0 / 0.48), 0 30px 52px -22px rgb(0 0 0 / 0.72);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-fg: var(--brand-fg);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  /* Geist is loaded via next/font; these map it onto Tailwind's font utilities. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-lift: var(--shadow-lift);
+}
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--background);
+  background-image: radial-gradient(
+    90rem 40rem at 50% -14rem,
+    var(--glow),
+    transparent 70%
+  );
+  background-repeat: no-repeat;
+  color: var(--foreground);
+  -webkit-tap-highlight-color: transparent;
+  /* Without this iOS inflates text in landscape. */
+  -webkit-text-size-adjust: 100%;
+}
+
+/*
+ * Grows an interactive element's tappable area to at least 44x44 without
+ * changing its visual box, so the design keeps its density while fingers get a
+ * full-size target. Applied to the controls that render smaller than that —
+ * segmented options, header icon buttons, row actions, small chips and links.
+ *
+ * Scoped to coarse pointers only: a mouse-driven desktop gets no overlay at
+ * all, so what it renders is untouched by this rule.
+ *
+ * Add `tap-slop-y` instead when the element has ungapped siblings beside it —
+ * widening the hit box sideways there would overlap the neighbour and steal
+ * its taps.
+ */
+@media (pointer: coarse) {
+  .tap-slop,
+  .tap-slop-y {
+    position: relative;
+  }
+  .tap-slop::after,
+  .tap-slop-y::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+    /* Transparent, but it is the hit area — it must stay clickable, and a tap
+       anywhere on it still targets the element it belongs to. */
+  }
+  .tap-slop::after {
+    width: max(100%, 44px);
+  }
+  .tap-slop-y::after {
+    width: 100%;
+  }
+}
+
+/* Keep touch targets comfortable and prevent iOS zoom on field focus. */
+input,
+select,
+textarea,
+button {
+  font-size: 16px;
+}
+@media (min-width: 768px) {
+  input,
+  select,
+  textarea,
+  button {
+    font-size: 14px;
+  }
+}
+
+/* Landing page: one quiet focal motion, with a reduced-motion escape hatch. */
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landing-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(12px, -10px, 0) scale(1.04); }
+}
+
+.landing-page {
+  position: relative;
+  isolation: isolate;
+}
+
+.landing-header,
+.landing-copy,
+.landing-preview,
+.landing-footer {
+  animation: landing-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-copy { animation-delay: 0.04s; }
+.landing-preview { animation-delay: 0.14s; }
+.landing-footer { animation-delay: 0.22s; }
+
+.landing-orb {
+  position: absolute;
+  z-index: -1;
+  width: min(42rem, 70vw);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  filter: blur(2px);
+  pointer-events: none;
+  opacity: 0.6;
+  animation: landing-drift 12s ease-in-out infinite;
+}
+
+.landing-orb-one {
+  top: -18rem;
+  right: -16rem;
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 18%, transparent), transparent 68%);
+}
+
+.landing-orb-two {
+  bottom: -24rem;
+  left: -20rem;
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand-soft) 70%, transparent), transparent 68%);
+  animation-delay: -6s;
+}
+
+.landing-kicker {
+  color: var(--brand);
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.landing-primary-action,
+.landing-secondary-action {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.75rem 1.35rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.landing-primary-action {
+  color: var(--brand-fg);
+  background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+  box-shadow: 0 12px 24px -14px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+
+.landing-primary-action:hover,
+.landing-secondary-action:hover {
+  transform: translateY(-1px);
+}
+
+.landing-primary-action:hover {
+  box-shadow: 0 16px 28px -14px color-mix(in srgb, var(--brand) 76%, transparent);
+}
+
+.landing-secondary-action {
+  border: 1px solid var(--line-strong);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.landing-secondary-action:hover { background: var(--surface); }
+.landing-text-link:hover { color: var(--brand); }
+
+.landing-preview {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  border-radius: 2rem;
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  box-shadow: var(--shadow-lift);
+  transform: rotate(1.5deg);
+}
+
+.landing-preview-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding: 1rem 1.1rem;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+}
+
+.landing-preview-mark {
+  display: inline-flex;
+  height: 1.55rem;
+  width: 1.55rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  color: var(--brand-fg);
+  background: var(--brand);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.landing-preview-avatar {
+  height: 1.65rem;
+  width: 1.65rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand-soft), var(--line-strong));
+}
+
+.landing-preview-body { padding: 1.25rem; }
+.landing-preview-note {
+  border-top: 1px solid var(--line);
+  padding: 0.75rem 1.25rem;
+  color: var(--subtle);
+  font-size: 0.7rem;
+  background: color-mix(in srgb, var(--surface) 56%, transparent);
+}
+
+@media (max-width: 640px) {
+  .landing-preview { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-header,
+  .landing-copy,
+  .landing-preview,
+  .landing-footer,
+  .landing-orb {
+    animation: none;
+  }
+  .landing-primary-action,
+  .landing-secondary-action {
+    transition: none;
+  }
+  .landing-primary-action:hover,
+  .landing-secondary-action:hover {
+    transform: none;
+  }
+}
+
+/* Soft entrance for route changes (applied in src/app/template.tsx). */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.page-enter {
+  animation: page-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pepcal-toast {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+::selection {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.shell-header {
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+}
+
+.shell-header-inner { min-height: 4.25rem; }
+
+.brand-mark {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(145deg, var(--brand), var(--brand-strong));
+  box-shadow: 0 7px 16px -8px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  width: 1.8rem;
+  height: 1.8rem;
+  top: -0.85rem;
+  right: -0.65rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.24);
+}
+
+.demo-banner {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--brand-soft) 86%, transparent), color-mix(in srgb, var(--surface) 78%, transparent));
+}
+
+.dashboard-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  align-items: center;
+  overflow: hidden;
+  min-height: 250px;
+  padding: clamp(1.5rem, 4vw, 2.4rem);
+  border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--line));
+  border-radius: 2rem;
+  background: radial-gradient(circle at 90% 18%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 30%), linear-gradient(135deg, color-mix(in srgb, var(--brand-soft) 86%, var(--surface)), var(--surface));
+  box-shadow: var(--shadow-pop);
+}
+
+.dashboard-hero::before {
+  content: "";
+  position: absolute;
+  inset: auto auto -5rem -4rem;
+  width: 15rem;
+  height: 15rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 16%, transparent);
+  border-radius: 50%;
+}
+
+.dashboard-hero-copy,
+.dashboard-hero-orbit { position: relative; z-index: 1; }
+
+.dashboard-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--brand-strong);
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.dashboard-kicker::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 15%, transparent);
+}
+
+.dashboard-hero h1 {
+  max-width: 18ch;
+  margin-top: 0.65rem;
+  color: var(--foreground);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 650;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.dashboard-hero p {
+  max-width: 42ch;
+  margin-top: 0.85rem;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.dashboard-hero-meta { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 1.35rem; }
+
+.dashboard-signal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 16%, var(--line));
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 600;
+}
+
+.dashboard-signal-chip strong { color: var(--foreground); }
+
+.dashboard-hero-orbit {
+  display: grid;
+  place-items: center;
+  width: 170px;
+  height: 170px;
+  justify-self: end;
+}
+
+.dashboard-hero-orbit::before,
+.dashboard-hero-orbit::after,
+.hero-orbit-ring {
+  content: "";
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent);
+  border-radius: 50%;
+}
+
+.dashboard-hero-orbit::before { width: 158px; height: 158px; }
+.dashboard-hero-orbit::after { width: 116px; height: 116px; border-style: dashed; opacity: 0.8; }
+.hero-orbit-ring { width: 194px; height: 194px; border-color: color-mix(in srgb, var(--brand) 10%, transparent); }
+
+.dashboard-hero-seal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--brand), var(--brand-strong));
+  color: var(--brand-fg);
+  box-shadow: 0 16px 30px -16px color-mix(in srgb, var(--brand) 90%, transparent);
+}
+
+.dashboard-hero-seal span,
+.dashboard-hero-seal small { font-size: 0.62rem; font-weight: 700; opacity: 0.76; }
+.dashboard-hero-seal strong { margin-top: 0.08rem; font-size: 1.85rem; font-weight: 700; letter-spacing: -0.07em; line-height: 1; }
+
+.dashboard-section-label { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-top: 0.4rem; }
+.dashboard-section-label h2 { color: var(--foreground); font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; }
+.dashboard-section-label p { color: var(--subtle); font-size: 0.75rem; }
+
+.action-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 142px;
+  border: 1px solid var(--line);
+  border-radius: 1.35rem;
+  background: var(--surface);
+  padding: 1rem;
+  text-align: left;
+  box-shadow: var(--shadow-card);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.action-card::after {
+  content: "";
+  position: absolute;
+  right: -1.4rem;
+  bottom: -2rem;
+  width: 6rem;
+  height: 6rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--brand-soft) 72%, transparent);
+}
+
+.action-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--brand) 32%, var(--line)); box-shadow: var(--shadow-lift); }
+.action-card-muted { background: color-mix(in srgb, var(--surface-2) 66%, var(--surface)); }
+
+.action-card-icon {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.95rem;
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.metric-card { position: relative; overflow: hidden; min-height: 126px; }
+.metric-card::after { content: ""; position: absolute; right: -2rem; bottom: -3rem; width: 7rem; height: 7rem; border: 1px solid color-mix(in srgb, var(--brand) 14%, transparent); border-radius: 50%; }
+.metric-icon { display: inline-flex; width: 2rem; height: 2rem; align-items: center; justify-content: center; border-radius: 0.7rem; background: var(--surface-2); color: var(--brand); }
+
+.recent-row,
+.vial-row { border-radius: 1rem; transition: background-color 160ms ease; }
+.recent-row:hover,
+.vial-row:hover { background: var(--surface-2); }
+
+.recent-avatar { display: flex; width: 2.2rem; height: 2.2rem; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: 0.75rem; background: var(--brand-soft); color: var(--brand); }
+.mobile-nav { box-shadow: 0 -12px 32px -24px rgb(23 50 45 / 0.4); }
+
+@media (max-width: 640px) {
+  .dashboard-hero { grid-template-columns: minmax(0, 1fr) 92px; min-height: 224px; padding: 1.25rem; }
+  .dashboard-hero-orbit { width: 92px; height: 92px; transform: scale(0.68); transform-origin: center right; }
+  .dashboard-hero h1 { font-size: 2rem; }
+  .action-card { min-height: 132px; padding: 0.85rem; }
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

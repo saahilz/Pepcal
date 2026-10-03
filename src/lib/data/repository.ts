@@ -90,6 +90,10 @@ export interface Repository {
   signOut(): Promise<void>;
   /** Start Google OAuth; resolves after Supabase accepts the redirect request. */
   signInWithGoogle(): Promise<void>;
+  /** Sign in with an existing email/password account. */
+  signInWithEmail(email: string, password: string): Promise<void>;
+  /** Register an email/password account and report whether confirmation is needed. */
+  signUpWithEmail(email: string, password: string): Promise<"signed-in" | "confirmation-required">;
 
   /* ---- Vials ---- */
   listVials(): Promise<Vial[]>;

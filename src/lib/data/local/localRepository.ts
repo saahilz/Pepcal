@@ -106,6 +106,14 @@ export const localDemoRepository: Repository = {
     throw new Error("Google sign-in is only available when Supabase is configured.");
   },
 
+  async signInWithEmail(): Promise<void> {
+    throw new Error("Email sign-in is only available when Supabase is configured.");
+  },
+
+  async signUpWithEmail(): Promise<"signed-in" | "confirmation-required"> {
+    throw new Error("Email registration is only available when Supabase is configured.");
+  },
+
   async listVials(): Promise<Vial[]> {
     const { vials } = readDb();
     return [...vials].sort((a, b) => b.createdAt.localeCompare(a.createdAt));

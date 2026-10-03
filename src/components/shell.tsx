@@ -8,6 +8,7 @@ import { useTheme } from "./theme-provider";
 import { Spinner } from "./ui";
 import { SignInCard } from "./auth/sign-in-card";
 import { cn } from "@/lib/ui/cn";
+import { isPublicRoute, shouldShowSupabaseSignInGate } from "./shell-state";
 import {
   CalcIcon,
   HomeIcon,
@@ -28,7 +29,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: HomeIcon },
+  { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
   { href: "/calculator", label: "Calculate", icon: CalcIcon },
   { href: "/log", label: "Log", icon: LogIcon },
   { href: "/vials", label: "Vials", icon: VialIcon, matchPrefix: true },
@@ -38,7 +39,7 @@ const NAV: NavItem[] = [
 function Brand() {
   return (
     <Link
-      href="/"
+      href="/dashboard"
       className="tap-slop flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-brand"
     >
       <span className="brand-mark flex h-9 w-9 items-center justify-center rounded-[1.05rem] text-sm font-bold text-brand-fg">
@@ -69,9 +70,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const isActive = (item: NavItem) =>
-    item.href === "/" ? pathname === "/" : item.matchPrefix ? pathname.startsWith(item.href) : pathname === item.href;
+    item.matchPrefix ? pathname.startsWith(item.href) : pathname === item.href;
 
-  if (repoKind === "supabase" && !user) {
+  if (isPublicRoute(pathname)) {
+    if (pathname === "/") return children;
+    return <SignInCard initialMode={pathname === "/register" ? "register" : "sign-in"} />;
+  }
+
+  if (shouldShowSupabaseSignInGate(repoKind, user, status)) {
     return <SignInCard />;
   }
 
@@ -129,7 +135,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto max-w-md rounded-2xl border border-bad bg-bad-soft p-6 text-center">
             <h1 className="font-semibold text-bad">Couldn’t open your data</h1>
             <p className="mt-2 text-sm">{error}</p>
-            <Link href="/" className="mt-4 inline-block text-sm font-medium underline underline-offset-2">
+            <Link href="/dashboard" className="mt-4 inline-block text-sm font-medium underline underline-offset-2">
               Reload
             </Link>
           </div>

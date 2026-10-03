@@ -52,6 +52,8 @@ interface DataContextValue {
   deleteWeight: (id: string) => Promise<void>;
   updateSettings: (patch: Parameters<Repository["updateSettings"]>[0]) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<"signed-in" | "confirmation-required">;
   signOut: () => Promise<void>;
   resetDemoData: () => Promise<void>;
   deleteAllUserData: () => Promise<void>;
@@ -108,12 +110,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         repoRef.current = repo;
         setRepoKind(repo.kind);
-        await refresh();
-        if (cancelled) return;
-        setStatus("ready");
 
         if (repo.kind === "supabase") {
-          const [{ getSupabase }, { createSupabaseAuthHandler, subscribeToSupabaseAuth }] = await Promise.all([
+          const [{ getSupabase }, { createSupabaseAuthHandler, subscribeAndRefreshSupabaseAuth }] = await Promise.all([
             import("@/lib/data/supabase/client"),
             import("./app-provider-auth"),
           ]);
@@ -134,8 +133,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
               setStatus("error");
             },
           });
-          unsubscribe = subscribeToSupabaseAuth(getSupabase(), handleAuthEvent);
+          const stop = await subscribeAndRefreshSupabaseAuth(getSupabase(), handleAuthEvent, refresh);
+          if (cancelled) {
+            stop();
+            return;
+          }
+          unsubscribe = stop;
+        } else {
+          await refresh();
         }
+        if (cancelled) return;
+        setStatus("ready");
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
@@ -218,6 +226,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await repo.signInWithGoogle();
   }, []);
 
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    const repo = repoRef.current;
+    if (!repo) throw new Error("The data store is still loading.");
+    setError(null);
+    await repo.signInWithEmail(email, password);
+  }, []);
+
+  const signUpWithEmail = useCallback(async (email: string, password: string) => {
+    const repo = repoRef.current;
+    if (!repo) throw new Error("The data store is still loading.");
+    setError(null);
+    return repo.signUpWithEmail(email, password);
+  }, []);
+
   const signOut = useCallback(async () => {
     await repoRef.current!.signOut();
     setUser(null);
@@ -256,6 +278,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         deleteWeight,
         updateSettings,
         signInWithGoogle,
+        signInWithEmail,
+        signUpWithEmail,
         signOut,
         resetDemoData,
         deleteAllUserData,

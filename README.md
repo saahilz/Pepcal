@@ -91,22 +91,26 @@ drop-in interchangeable:
 ## Setting up Supabase
 
 1. Create a project at [supabase.com](https://supabase.com) (enable Postgres).
-2. Apply the migrations — in the Supabase SQL editor paste the contents of
-   `supabase/migrations/0001_init.sql` (or run `supabase db push` from the CLI).
-   This creates every table, the signup trigger, and **row-level-security policies
-   scoping all data to `auth.uid()`**.
-3. In **Authentication → Providers**, enable **Google**. Create a Google OAuth Web
-   client in Google Cloud, then enter its client ID and secret only in Supabase's Google
-   provider settings. Keep provider credentials out of this repository and out of browser
-   environment variables.
-4. In **Authentication → URL Configuration**, set the Site URL to the app's origin and add
+2. Apply **both** migrations — run `supabase db push` from the CLI, or paste
+   `supabase/migrations/0001_init.sql` and then `supabase/migrations/0002_weight_entries.sql`
+   into the Supabase SQL editor in that order. The second migration creates the body-weight
+   table used during authenticated startup. Together they create every table, the signup
+   trigger, and **row-level-security policies scoping all data to `auth.uid()`**.
+3. In **Authentication → Providers**, enable **Email** for email/password accounts and
+   choose whether **Confirm email** is required. With confirmation enabled, registration
+   shows a safe prompt to check the account email and the user can sign in after confirming.
+4. Also enable **Google** if Google SSO is wanted. Create a Google OAuth Web client in
+   Google Cloud, then enter its client ID and secret only in Supabase's Google provider
+   settings. Keep provider credentials out of this repository and out of browser environment
+   variables.
+5. In **Authentication → URL Configuration**, set the Site URL to the app's origin and add
    these redirect allow-list entries: `http://localhost:3000`, `http://127.0.0.1:3000`, and
    the production HTTPS origin. Google OAuth must also allow the Supabase callback URL shown
    in the provider settings.
-5. Copy `.env.example` → `.env.local`; paste only the project URL and **anon** key from
+6. Copy `.env.example` → `.env.local`; paste only the project URL and **anon** key from
    **Project Settings → API**. Never expose a service-role key or Google client secret.
-6. Restart `npm run dev` after changing environment variables. The banner disappears and
-   Google sign-in is enforced.
+7. Restart `npm run dev` after changing environment variables. The banner disappears and
+   the configured Supabase sign-in options are enforced.
 
 No real credentials are stored in this repository. A real login requires the Google Cloud and
 Supabase dashboard configuration above; without both public Supabase variables, Pepcal remains

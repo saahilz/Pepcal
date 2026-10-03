@@ -62,3 +62,18 @@ export function subscribeToSupabaseAuth(
   });
   return () => result.data?.subscription?.unsubscribe();
 }
+
+export async function subscribeAndRefreshSupabaseAuth(
+  client: AuthClient,
+  handler: (event: SupabaseAuthEvent) => Promise<void>,
+  refresh: () => Promise<void>
+): Promise<() => void> {
+  const stop = subscribeToSupabaseAuth(client, handler);
+  try {
+    await refresh();
+    return stop;
+  } catch (error) {
+    stop();
+    throw error;
+  }
+}
