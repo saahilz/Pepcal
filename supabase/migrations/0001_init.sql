@@ -129,24 +129,6 @@ create trigger schedules_updated_at
   before update on public.schedules
   for each row execute function public.set_updated_at();
 
-create table if not exists public.occurrences (
-  id                  uuid primary key default gen_random_uuid(),
-  user_id             uuid not null references auth.users (id) on delete cascade,
-  schedule_id         uuid not null references public.schedules (id) on delete cascade,
-  scheduled_for_utc   timestamptz not null,
-  status              text not null default 'scheduled'
-                      check (status in ('scheduled', 'taken', 'skipped', 'snoozed', 'dismissed')),
-  completion_log_id   uuid references public.injection_logs (id) on delete set null,
-  snoozed_until_utc   timestamptz,
-  created_at          timestamptz not null default now(),
-  demo                boolean not null default false,
-  -- One occurrence per schedule instant: no duplicate reminders.
-  unique (schedule_id, scheduled_for_utc)
-);
-
-create index occurrences_due_idx on public.occurrences (user_id, scheduled_for_utc, status);
-create index occurrences_taken_dupe_idx on public.occurrences (schedule_id, status) where status = 'taken';
-
 /* ------------------------------------------------------------------ */
 /* injection_logs — completed administrations                         */
 /* ------------------------------------------------------------------ */
@@ -180,6 +162,28 @@ create index injection_logs_vial_idx on public.injection_logs (vial_id);
 create unique index injection_logs_schedule_completion_once
   on public.injection_logs (schedule_id, scheduled_time_utc)
   where schedule_id is not null and scheduled_time_utc is not null;
+
+/* ------------------------------------------------------------------ */
+/* occurrences — reminders                                             */
+/* ------------------------------------------------------------------ */
+
+create table if not exists public.occurrences (
+  id                  uuid primary key default gen_random_uuid(),
+  user_id             uuid not null references auth.users (id) on delete cascade,
+  schedule_id         uuid not null references public.schedules (id) on delete cascade,
+  scheduled_for_utc   timestamptz not null,
+  status              text not null default 'scheduled'
+                      check (status in ('scheduled', 'taken', 'skipped', 'snoozed', 'dismissed')),
+  completion_log_id   uuid references public.injection_logs (id) on delete set null,
+  snoozed_until_utc   timestamptz,
+  created_at          timestamptz not null default now(),
+  demo                boolean not null default false,
+  -- One occurrence per schedule instant: no duplicate reminders.
+  unique (schedule_id, scheduled_for_utc)
+);
+
+create index occurrences_due_idx on public.occurrences (user_id, scheduled_for_utc, status);
+create index occurrences_taken_dupe_idx on public.occurrences (schedule_id, status) where status = 'taken';
 
 /* ------------------------------------------------------------------ */
 /* notifications                                                       */

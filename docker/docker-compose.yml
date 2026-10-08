@@ -1,0 +1,18 @@
+services:
+  pepcal:
+    image: pepcal:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        # NEXT_PUBLIC_* values are bundled into the browser during `next build`.
+        # Keep the anon key only; never use a Supabase service-role key here.
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    restart: unless-stopped

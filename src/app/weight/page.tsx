@@ -13,6 +13,7 @@ import { useData } from "@/components/app-provider";
 import { useToast } from "@/components/toast-provider";
 import { Badge, Card, CardHeader, EmptyState, Segmented, Spinner } from "@/components/ui";
 import { EditIcon, TrashIcon } from "@/components/icons";
+import { BmiCalculator } from "@/components/weight/bmi-calculator";
 import { WeightChart } from "@/components/weight/weight-chart";
 import { WeightForm } from "@/components/weight/weight-form";
 import { useWeightUnit } from "@/components/weight/use-weight-unit";
@@ -169,6 +170,8 @@ export default function WeightPage() {
           onDone={() => setEditingId(null)}
         />
       </div>
+
+      <BmiCalculator />
 
       {rows.length > 0 ? (
         <Card className="overflow-hidden">

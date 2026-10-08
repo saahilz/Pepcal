@@ -129,6 +129,71 @@ in local demo mode and makes no Supabase Auth requests.
    served over HTTPS automatically; the repository is resolved per environment at
    runtime on the client.
 
+## Docker deployment (VPS)
+
+The production container runs Pepcal's Next.js server. Supabase remains hosted
+externally and continues to provide Auth, Postgres, RLS, and email delivery.
+
+### Build and run locally
+
+The Docker files are grouped under the `docker/` folder. Create a `.env` file
+in the project root when using Supabase:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-public-anon-key
+```
+
+Only the public Supabase URL and anon/publishable key belong in this file. Never
+put a service-role key, Google client secret, SMTP password, or other private key
+in Docker build arguments or `NEXT_PUBLIC_*` variables.
+
+Then build and start the container:
+
+```bash
+docker compose --env-file .env -f docker/docker-compose.yml build
+docker compose --env-file .env -f docker/docker-compose.yml up -d
+curl -I http://127.0.0.1:3000/
+docker compose --env-file .env -f docker/docker-compose.yml logs -f pepcal
+```
+
+The app is available at `http://127.0.0.1:3000`. Without Supabase variables,
+the image runs in local demo mode. Supabase public variables are supplied at
+build time because Next.js bundles `NEXT_PUBLIC_*` values into browser code.
+
+### Install on the VPS
+
+From the VPS, clone or copy the Pepcal repository, then run:
+
+```bash
+cd Pepcal
+cp .env.example .env
+nano .env
+docker compose --env-file .env -f docker/docker-compose.yml build --no-cache
+docker compose --env-file .env -f docker/docker-compose.yml up -d
+docker compose --env-file .env -f docker/docker-compose.yml ps
+docker compose --env-file .env -f docker/docker-compose.yml logs --tail=100 pepcal
+```
+
+If Nginx is on the VPS, keep it as the HTTPS reverse proxy and proxy the domain
+to `http://127.0.0.1:3000`. Do not expose Supabase service credentials to the
+container or browser. After changing either public Supabase value, rebuild the
+image and recreate the container:
+
+```bash
+docker compose --env-file .env -f docker/docker-compose.yml build --no-cache
+docker compose --env-file .env -f docker/docker-compose.yml up -d --force-recreate
+```
+
+To update or stop the installation:
+
+```bash
+git pull
+docker compose --env-file .env -f docker/docker-compose.yml build --no-cache
+docker compose --env-file .env -f docker/docker-compose.yml up -d --force-recreate
+docker compose --env-file .env -f docker/docker-compose.yml down
+```
+
 ## Privacy & security posture
 
 - Health data requires authentication and is scoped per-user via RLS.
