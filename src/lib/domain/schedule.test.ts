@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextOccurrence, occurrencesWithin, formatCountdown, injectionUrgency } from "./schedule";
+import { nextOccurrence, occurrencesWithin, formatCountdown, injectionGaugeFraction } from "./schedule";
 import type { Schedule } from "@/lib/data/repository";
 
 const monWedFri: Schedule = {
@@ -109,20 +109,18 @@ describe("formatCountdown", () => {
   });
 });
 
-describe("injectionUrgency", () => {
-  // Fixed local noon + ms offsets so the bands don't shift with the machine's
-  // time zone (endOfToday is local by definition).
-  const noon = new Date(2026, 9, 18, 12, 0, 0);
-  const ahead = (h: number) => new Date(noon.getTime() + h * 3600000);
+describe("injectionGaugeFraction", () => {
+  const week = 7 * 24 * 3600000;
+  const now = new Date("2026-10-18T12:00:00Z");
 
-  it("bands time remaining from cool to hot", () => {
-    expect(injectionUrgency(ahead(-1), noon)).toBe("overdue");
-    expect(injectionUrgency(ahead(2), noon)).toBe("imminent");
-    expect(injectionUrgency(ahead(3.1), noon)).toBe("today"); // past 3h, same day
-    expect(injectionUrgency(ahead(10), noon)).toBe("today"); // 22:00, still same day
-    expect(injectionUrgency(ahead(12.5), noon)).toBe("soon"); // 00:30 next day: soon, not today
-    expect(injectionUrgency(ahead(36), noon)).toBe("soon"); // next day
-    expect(injectionUrgency(ahead(100), noon)).toBe("far"); // > 2 days
-    expect(injectionUrgency(ahead(47.9), noon)).toBe("soon"); // ≤ 2 days is still "soon"
+  it("maps time remaining onto 0..1 across the window", () => {
+    expect(injectionGaugeFraction(new Date(now.getTime() + week), now)).toBe(0);
+    expect(injectionGaugeFraction(new Date(now.getTime() + week / 2), now)).toBeCloseTo(0.5);
+    expect(injectionGaugeFraction(now, now)).toBe(1);
+  });
+
+  it("clamps past-due and far-out dosages to the ends", () => {
+    expect(injectionGaugeFraction(new Date(now.getTime() - 3600000), now)).toBe(1);
+    expect(injectionGaugeFraction(new Date(now.getTime() + 3 * week), now)).toBe(0);
   });
 });

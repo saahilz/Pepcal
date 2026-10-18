@@ -5,10 +5,9 @@ import { useEffect, useState } from "react";
 import { useData } from "@/components/app-provider";
 import { Badge, Button, Card, CardHeader, EmptyState } from "@/components/ui";
 import { CalcIcon, CalendarIcon, ChevronRightIcon, LogIcon, VialIcon } from "@/components/icons";
-import { cn } from "@/lib/ui/cn";
 import { amountLabel, formatTime, relativeDayLabel } from "@/lib/format";
 import { CLINICAL_CONFIRM } from "@/lib/domain/disclaimer";
-import { formatCountdown, injectionUrgency, occurrencesWithin } from "@/lib/domain/schedule";
+import { formatCountdown, injectionGaugeFraction, occurrencesWithin } from "@/lib/domain/schedule";
 
 /** How far ahead the "upcoming injections" list looks. Fixed at render time. */
 const UPCOMING_WINDOW_MS = 45 * 86_400_000;
@@ -165,33 +164,34 @@ export function DashboardPage() {
               appear here with a live countdown.
             </p>
           ) : (
-            <ul className="flex flex-col divide-y divide-line" aria-label="Upcoming injections">
+            <ul
+              className="flex flex-row items-start gap-4 overflow-x-auto pb-1"
+              aria-label="Upcoming injections"
+            >
               {upcoming.slice(0, 5).map(({ schedule, at }) => {
-                const key = `${schedule.id}-${at.toISOString()}`;
+                const frac = injectionGaugeFraction(at, now);
                 return (
-                  <li key={key} className="flex items-center justify-between gap-3 px-1 py-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span
-                        aria-hidden
-                        className={cn("inj-ring", `inj-${injectionUrgency(at, now)}`)}
-                      >
-                        {at.getDate()}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold tabular-nums">
-                          {SCHED_AT.format(at)}
-                        </p>
-                        <p className="truncate text-xs text-muted">
-                          {schedule.vialNameSnapshot ?? "Schedule"} ·{" "}
-                          {amountLabel(schedule.amount, schedule.amountUnit)}
-                          {schedule.demo ? " · Demo" : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="shrink-0 text-right text-sm font-semibold tabular-nums text-brand">
+                  <li
+                    key={`${schedule.id}-${at.toISOString()}`}
+                    className="flex min-w-[6.5rem] flex-1 flex-col items-center gap-1 text-center"
+                  >
+                    <span
+                      aria-hidden
+                      className="inj-gauge"
+                      style={{ "--g": `${Math.round(frac * 270)}deg` } as React.CSSProperties}
+                    >
+                      <span className="inj-gauge-emoji">💉</span>
+                    </span>
+                    <span className="text-xs font-semibold tabular-nums">
+                      {SCHED_AT.format(at)}
+                    </span>
+                    <span className="w-full truncate text-[11px] text-muted">
+                      {schedule.vialNameSnapshot ?? "Schedule"}
+                    </span>
+                    <span className="text-xs font-semibold tabular-nums text-brand">
                       {formatCountdown(at, now)}
                       <span className="sr-only"> until this injection</span>
-                    </p>
+                    </span>
                   </li>
                 );
               })}
