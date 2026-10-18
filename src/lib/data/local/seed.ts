@@ -11,9 +11,18 @@
  * the amounts mirror the calculator's own worked example only.
  */
 
-import type { InjectionLog, Vial, WeightEntry } from "../types";
+import type { InjectionLog, Schedule, Vial, WeightEntry } from "../types";
 
 export const DEMO_USER_ID = "local-demo-user";
+
+/** The browser's current IANA time zone name, if the runtime exposes one. */
+export function detectTimeZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /** UTC ISO at `daysAgo` days before `now`, set to hour/minute UTC. */
 function at(daysAgo: number, hour: number, minute: number, now: Date): string {
@@ -31,6 +40,7 @@ export interface SeedData {
   vials: Vial[];
   injections: InjectionLog[];
   weights: WeightEntry[];
+  schedules: Schedule[];
 }
 
 export function buildSeedData(now: Date = new Date()): SeedData {
@@ -218,6 +228,45 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     demo: true,
   });
 
+  /* Two fictional schedules so the dashboard countdown and the calendar's
+     "upcoming" markers have something to show in demo mode. Patterns mirror
+     common peptide cadences; amounts match the logged doses above. Times are
+     the viewer's own zone so the demo reads naturally anywhere. */
+  const schedule = (over: Omit<Schedule, "userId" | "createdAt" | "updatedAt" | "demo" | "timeZone" | "travel">): Schedule => ({
+    userId,
+    createdAt: isoDaysAgo(14, now),
+    updatedAt: isoDaysAgo(14, now),
+    demo: true,
+    timeZone: detectTimeZone() ?? "UTC",
+    travel: "homeTimeZone",
+    ...over,
+  });
+
+  const schedules: Schedule[] = [
+    schedule({
+      id: "demo-schedule-a",
+      vialId: vialA.id,
+      vialNameSnapshot: vialA.name,
+      amount: 250,
+      amountUnit: "mcg",
+      pattern: { kind: "weekdays", weekdays: [1, 3, 5], timeLocal: "09:00" },
+      startDate: isoDaysAgo(14, now).slice(0, 10),
+      endDate: null,
+      enabled: true,
+    }),
+    schedule({
+      id: "demo-schedule-b",
+      vialId: vialB.id,
+      vialNameSnapshot: vialB.name,
+      amount: 200,
+      amountUnit: "mcg",
+      pattern: { kind: "everyXDays", intervalDays: 3, timeLocal: "20:00" },
+      startDate: isoDaysAgo(8, now).slice(0, 10),
+      endDate: null,
+      enabled: true,
+    }),
+  ];
+
   const weights: WeightEntry[] = [
     weighIn(70, 88.4),
     weighIn(63, 87.6),
@@ -233,5 +282,5 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     weighIn(0, 82.1),
   ];
 
-  return { vials: [vialB, vialA], injections, weights };
+  return { vials: [vialB, vialA], injections, weights, schedules };
 }

@@ -11,6 +11,7 @@ import { cn } from "@/lib/ui/cn";
 import { isPublicRoute, shouldShowSupabaseSignInGate } from "./shell-state";
 import {
   CalcIcon,
+  CalendarIcon,
   HomeIcon,
   LogIcon,
   MoonIcon,
@@ -30,6 +31,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
+  { href: "/calendar", label: "Calendar", icon: CalendarIcon, matchPrefix: true },
   { href: "/calculator", label: "Calculate", icon: CalcIcon },
   { href: "/log", label: "Log", icon: LogIcon },
   { href: "/vials", label: "Vials", icon: VialIcon, matchPrefix: true },
@@ -149,7 +151,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       >
         {/* This nav is fixed to the viewport, so it sits outside the wrapper's
             safe-area padding and carries the insets itself. */}
-        <div className="mx-auto grid max-w-5xl grid-cols-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+        <div className="mx-auto grid max-w-5xl grid-cols-6 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
           {NAV.map((item) => (
             <Link
               key={item.href}

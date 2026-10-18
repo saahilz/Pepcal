@@ -14,6 +14,7 @@ import type {
   InjectionInput,
   InjectionLog,
   Repository,
+  Schedule,
   UserRef,
   UserSettings,
   Vial,
@@ -21,7 +22,7 @@ import type {
   WeightEntry,
   WeightInput,
 } from "../repository";
-import { buildSeedData, DEMO_USER_ID } from "./seed";
+import { buildSeedData, DEMO_USER_ID, detectTimeZone } from "./seed";
 
 const KEY = "pepcal.demo.db.v1";
 
@@ -29,18 +30,11 @@ interface Envelope {
   vials: Vial[];
   injections: InjectionLog[];
   weights: WeightEntry[];
+  schedules: Schedule[];
   settings: UserSettings;
 }
 
 const DEMO_USER: UserRef = { id: DEMO_USER_ID, name: "Local demo account", isDemo: true };
-
-function detectTimeZone(): string | null {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
-  } catch {
-    return null;
-  }
-}
 
 function emptySettings(): UserSettings {
   return {
@@ -67,12 +61,14 @@ function readDb(): Envelope {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Envelope>;
       if (parsed && Array.isArray(parsed.vials) && Array.isArray(parsed.injections)) {
+        // Envelopes written before a table existed lack its key; seed fake rows
+        // rather than showing an empty view (same rule for weights + schedules).
+        const fresh = buildSeedData();
         return {
           vials: parsed.vials,
           injections: parsed.injections,
-          // Stores written before weight tracking existed have no `weights`
-          // key; seed the fictional series rather than showing an empty chart.
-          weights: Array.isArray(parsed.weights) ? parsed.weights : buildSeedData().weights,
+          weights: Array.isArray(parsed.weights) ? parsed.weights : fresh.weights,
+          schedules: Array.isArray(parsed.schedules) ? parsed.schedules : fresh.schedules,
           settings: { ...emptySettings(), ...(parsed.settings ?? {}) },
         };
       }
@@ -85,6 +81,7 @@ function readDb(): Envelope {
     vials: seeded.vials,
     injections: seeded.injections,
     weights: seeded.weights,
+    schedules: seeded.schedules,
     settings: emptySettings(),
   };
   writeDb(db);
@@ -258,15 +255,17 @@ export const localDemoRepository: Repository = {
       vials: seeded.vials,
       injections: seeded.injections,
       weights: seeded.weights,
+      schedules: seeded.schedules,
       settings: emptySettings(),
     });
   },
 
   async deleteAllUserData(): Promise<void> {
-    writeDb({ vials: [], injections: [], weights: [], settings: emptySettings() });
+    writeDb({ vials: [], injections: [], weights: [], schedules: [], settings: emptySettings() });
   },
 
-  async listSchedules() {
-    return [];
-  },
+  async listSchedules(): Promise<Schedule[]> {
+    const { schedules } = readDb();
+    return [...schedules].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
 };

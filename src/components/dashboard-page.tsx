@@ -1,12 +1,25 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useData } from "@/components/app-provider";
-import { useToast } from "@/components/toast-provider";
 import { Badge, Button, Card, CardHeader, EmptyState } from "@/components/ui";
-import { CalcIcon, CalendarIcon, ChevronRightIcon, LogIcon, VialIcon } from "@/components/icons";
+import { CalcIcon, CalendarIcon, ChevronRightIcon, ClockIcon, LogIcon, VialIcon } from "@/components/icons";
 import { amountLabel, formatTime, relativeDayLabel } from "@/lib/format";
 import { CLINICAL_CONFIRM } from "@/lib/domain/disclaimer";
+import { formatCountdown, occurrencesWithin } from "@/lib/domain/schedule";
+
+/** How far ahead the "upcoming injections" list looks. Fixed at render time. */
+const UPCOMING_WINDOW_MS = 45 * 86_400_000;
+
+/** "Sun, 18 Oct · 09:00"-style label for a scheduled instant (viewer's zone). */
+const SCHED_AT = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 function isSameLocalDay(iso: string, now: Date): boolean {
   const d = new Date(iso);
@@ -17,11 +30,27 @@ function isSameLocalDay(iso: string, now: Date): boolean {
   );
 }
 
+/** Re-render once a minute so the countdown stays honest. */
+function useMinuteTick(): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+  return tick;
+}
+
 export function DashboardPage() {
-  const { vials, injections } = useData();
-  const { show } = useToast();
+  const { vials, injections, schedules } = useData();
+  useMinuteTick();
 
   const now = new Date();
+  const upcoming = occurrencesWithin(
+    schedules.filter((s) => s.enabled),
+    now,
+    new Date(now.getTime() + UPCOMING_WINDOW_MS)
+  );
+
   const todayLogs = injections.filter((i) => isSameLocalDay(i.administeredAt, now));
   const activeVials = vials.filter((v) => v.concentrationMcgPerMl !== null);
   const recent = injections.slice(0, 6);
@@ -70,19 +99,18 @@ export function DashboardPage() {
           sub="concentration"
         />
         <QuickAction href="/log" icon={<LogIcon className="h-6 w-6" />} label="Log injection" sub="what you took" />
-        <button
-          type="button"
-          onClick={() => show("Schedules & reminders arrive in the next build phase.")}
-          className="action-card action-card-muted flex flex-col items-start gap-2.5 focus-visible:outline-2 focus-visible:outline-brand active:scale-[0.99]"
+        <Link
+          href="/calendar"
+          className="action-card flex flex-col items-start gap-2.5 focus-visible:outline-2 focus-visible:outline-brand active:scale-[0.99]"
         >
-          <span className="action-card-icon text-muted">
+          <span className="action-card-icon">
             <CalendarIcon className="h-6 w-6" />
           </span>
           <span>
-            <span className="block text-sm font-semibold">Add schedule</span>
-            <span className="block text-xs text-subtle">coming next</span>
+            <span className="block text-sm font-semibold">Calendar</span>
+            <span className="block text-xs text-subtle">your days at a glance</span>
           </span>
-        </button>
+        </Link>
       </div>
 
       <div className="dashboard-section-label">
@@ -119,13 +147,52 @@ export function DashboardPage() {
       </div>
 
       <Card>
-        <CardHeader title="Next scheduled injection" aside={<Badge tone="neutral">Soon</Badge>} />
+        <CardHeader
+          title="Upcoming injections"
+          aside={
+            upcoming.length > 0 ? (
+              <Badge tone="info">
+                {upcoming.length} in the next 45 days
+              </Badge>
+            ) : undefined
+          }
+        />
         <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-          <p className="rounded-[1.1rem] border border-line/70 bg-surface-2/70 px-3.5 py-3 text-sm leading-relaxed text-muted">
-            Scheduling with countdowns, reminders, and a today-status board (scheduled,
-            taken, skipped, overdue) arrives in the next phase. Your completed injections
-            are already recorded below.
-          </p>
+          {upcoming.length === 0 ? (
+            <p className="rounded-[1.1rem] border border-line/70 bg-surface-2/70 px-3.5 py-3 text-sm leading-relaxed text-muted">
+              No scheduled injections in the next 45 days. Schedules you create will
+              appear here with a live countdown.
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-line" aria-label="Upcoming injections">
+              {upcoming.slice(0, 5).map(({ schedule, at }) => {
+                const key = `${schedule.id}-${at.toISOString()}`;
+                return (
+                  <li key={key} className="flex items-center justify-between gap-3 px-1 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="recent-avatar" aria-hidden>
+                        <ClockIcon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold tabular-nums">
+                          {SCHED_AT.format(at)}
+                        </p>
+                        <p className="truncate text-xs text-muted">
+                          {schedule.vialNameSnapshot ?? "Schedule"} ·{" "}
+                          {amountLabel(schedule.amount, schedule.amountUnit)}
+                          {schedule.demo ? " · Demo" : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="shrink-0 text-right text-sm font-semibold tabular-nums text-brand">
+                      {formatCountdown(at, now)}
+                      <span className="sr-only"> until this injection</span>
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </Card>
 

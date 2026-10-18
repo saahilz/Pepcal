@@ -24,6 +24,7 @@ import type {
   InjectionLog,
   RepoKind,
   Repository,
+  Schedule,
   Vial,
   VialInput,
   WeightEntry,
@@ -40,6 +41,7 @@ interface DataContextValue {
   user: UserRef | null;
   vials: Vial[];
   injections: InjectionLog[];
+  schedules: Schedule[];
   /** Chronological, oldest first. */
   weights: WeightEntry[];
   settings: UserSettings;
@@ -77,6 +79,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [repoKind, setRepoKind] = useState<RepoKind>("demo");
   const [vials, setVials] = useState<Vial[]>([]);
   const [injections, setInjections] = useState<InjectionLog[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [settings, setSettings] = useState<UserSettings>(emptySettings);
   const mountedRef = useRef(true);
@@ -84,10 +87,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     const repo = repoRef.current;
     if (!repo) return;
-    const [nextUser, nextVials, nextInjections, nextWeights, nextSettings] = await Promise.all([
+    const [nextUser, nextVials, nextInjections, nextSchedules, nextWeights, nextSettings] = await Promise.all([
       repo.currentUser(),
       repo.listVials(),
       repo.listInjections(),
+      repo.listSchedules(),
       repo.listWeights(),
       repo.getSettings(),
     ]);
@@ -95,6 +99,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setUser(nextUser);
     setVials(nextVials);
     setInjections(nextInjections);
+    setSchedules(nextSchedules);
     setWeights(nextWeights);
     setSettings(nextSettings);
   }, []);
@@ -125,6 +130,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
               setUser(null);
               setVials([]);
               setInjections([]);
+              setSchedules([]);
               setWeights([]);
               setSettings(emptySettings);
             },
@@ -245,6 +251,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setVials([]);
     setInjections([]);
+    setSchedules([]);
     setWeights([]);
     setSettings(emptySettings);
   }, []);
@@ -268,6 +275,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         user,
         vials,
         injections,
+        schedules,
         weights,
         settings,
         saveVial,
