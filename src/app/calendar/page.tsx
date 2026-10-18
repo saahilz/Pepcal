@@ -6,6 +6,7 @@ import { Button, Card, CardHeader } from "@/components/ui";
 import { ChevronRightIcon } from "@/components/icons";
 import { addMonths, buildMonthGrid } from "@/lib/domain/calendar";
 import { occurrencesWithin } from "@/lib/domain/schedule";
+import { amountLabel, formatTime } from "@/lib/format";
 
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
   new Intl.DateTimeFormat(undefined, { weekday: "narrow" }).format(new Date(2026, 9, 4 + i))
@@ -29,24 +30,34 @@ export default function CalendarPage() {
   const grid = buildMonthGrid(cursor.year, cursor.month);
   const title = MONTH_TITLE.format(new Date(cursor.year, cursor.month, 1));
 
-  // Markers: logged injections (solid) and scheduled upcoming occurrences
-  // (ring). Schedules are read-only here — the reminder layer wires writes.
-  const loggedDays = new Set(
-    injections.map((i) => {
-      const d = new Date(i.administeredAt);
-      return dayKey(d);
-    })
-  );
+  // Markers + hover notes: logged injections (solid dot) and scheduled
+  // upcoming occurrences (ring). Each day maps to "time · vial · dose" lines
+  // shown as a native title tooltip. Schedules stay read-only here.
+  const loggedByDay = new Map<string, string[]>();
+  for (const i of injections) {
+    const key = dayKey(new Date(i.administeredAt));
+    const lines = loggedByDay.get(key) ?? [];
+    lines.push(
+      `${formatTime(i.administeredAt)} · ${i.vialNameSnapshot ?? "No linked vial"} · ${amountLabel(i.amount, i.amountUnit)}`
+    );
+    loggedByDay.set(key, lines);
+  }
   // Only future occurrences count as "upcoming" — browsing back in time must
   // not relabel past days. The window starts at the later of month start/now.
   const monthStart = new Date(cursor.year, cursor.month, 1);
-  const scheduledDays = new Set(
-    occurrencesWithin(
-      schedules.filter((s) => s.enabled),
-      new Date(Math.max(monthStart.getTime(), now.getTime())),
-      new Date(cursor.year, cursor.month + 2, 0)
-    ).map((o) => dayKey(o.at))
-  );
+  const scheduledByDay = new Map<string, string[]>();
+  for (const o of occurrencesWithin(
+    schedules.filter((s) => s.enabled),
+    new Date(Math.max(monthStart.getTime(), now.getTime())),
+    new Date(cursor.year, cursor.month + 2, 0)
+  )) {
+    const key = dayKey(o.at);
+    const lines = scheduledByDay.get(key) ?? [];
+    lines.push(
+      `${formatTime(o.at.toISOString())} · ${o.schedule.vialNameSnapshot ?? "Scheduled"} · ${amountLabel(o.schedule.amount, o.schedule.amountUnit)}`
+    );
+    scheduledByDay.set(key, lines);
+  }
 
   const isToday = (d: Date) =>
     d.getFullYear() === now.getFullYear() &&
@@ -109,10 +120,18 @@ export default function CalendarPage() {
           <div className="grid grid-cols-7 gap-1" role="rowgroup">
             {grid.map(({ date, inMonth }) => {
               const today = isToday(date);
+              const key = dayKey(date);
+              const logged = inMonth ? (loggedByDay.get(key) ?? null) : null;
+              const scheduled = inMonth ? (scheduledByDay.get(key) ?? null) : null;
+              const hoverTitle = [
+                ...(logged ? [logged.map((l) => `Injected · ${l}`).join("\n")] : []),
+                ...(scheduled ? [scheduled.map((l) => `Scheduled · ${l}`).join("\n")] : []),
+              ].join("\n") || undefined;
               return (
                 <div
                   key={date.getTime()}
                   className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl text-sm transition-colors sm:rounded-2xl"
+                  title={hoverTitle}
                   {...(today ? { "aria-current": "date" } : {})}
                 >
                   <span
@@ -126,13 +145,13 @@ export default function CalendarPage() {
                   >
                     {date.getDate()}
                   </span>
-                  {inMonth && scheduledDays.has(dayKey(date)) ? (
+                  {scheduled ? (
                     <span
                       aria-hidden
                       className="h-1.5 w-1.5 rounded-full ring-2 ring-info ring-offset-surface"
                     />
                   ) : null}
-                  {inMonth && loggedDays.has(dayKey(date)) ? (
+                  {logged ? (
                     <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-brand" />
                   ) : null}
                 </div>
