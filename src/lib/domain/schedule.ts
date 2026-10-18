@@ -138,3 +138,17 @@ export function formatCountdown(target: Date, now: Date = new Date()): string {
   }
   return `in ${Math.floor(hrs / 24)}d ${hrs % 24}h`;
 }
+
+/** Heat band for an upcoming occurrence, by time remaining. */
+export type InjectionUrgency = "far" | "soon" | "today" | "imminent" | "overdue";
+
+/** overdue = past · imminent ≤3h · today = before local midnight · soon ≤48h · far beyond. */
+export function injectionUrgency(target: Date, now: Date = new Date()): InjectionUrgency {
+  const msLeft = target.getTime() - now.getTime();
+  if (msLeft <= 0) return "overdue";
+  if (msLeft <= 3 * 3600000) return "imminent";
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+  if (target <= endOfToday) return "today";
+  return msLeft / 3600000 <= 48 ? "soon" : "far";
+}

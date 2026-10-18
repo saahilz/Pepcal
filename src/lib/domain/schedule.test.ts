@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextOccurrence, occurrencesWithin, formatCountdown } from "./schedule";
+import { nextOccurrence, occurrencesWithin, formatCountdown, injectionUrgency } from "./schedule";
 import type { Schedule } from "@/lib/data/repository";
 
 const monWedFri: Schedule = {
@@ -106,5 +106,23 @@ describe("formatCountdown", () => {
     expect(formatCountdown(t, new Date("2026-10-19T09:00:00Z"))).toBe("due now");
     // 33h ahead = 1d 9h (Oct 18 00:00 → target 09:00 on the 19th).
     expect(formatCountdown(t, new Date("2026-10-18T00:00:00Z"))).toBe("in 1d 9h");
+  });
+});
+
+describe("injectionUrgency", () => {
+  // Fixed local noon + ms offsets so the bands don't shift with the machine's
+  // time zone (endOfToday is local by definition).
+  const noon = new Date(2026, 9, 18, 12, 0, 0);
+  const ahead = (h: number) => new Date(noon.getTime() + h * 3600000);
+
+  it("bands time remaining from cool to hot", () => {
+    expect(injectionUrgency(ahead(-1), noon)).toBe("overdue");
+    expect(injectionUrgency(ahead(2), noon)).toBe("imminent");
+    expect(injectionUrgency(ahead(3.1), noon)).toBe("today"); // past 3h, same day
+    expect(injectionUrgency(ahead(10), noon)).toBe("today"); // 22:00, still same day
+    expect(injectionUrgency(ahead(12.5), noon)).toBe("soon"); // 00:30 next day: soon, not today
+    expect(injectionUrgency(ahead(36), noon)).toBe("soon"); // next day
+    expect(injectionUrgency(ahead(100), noon)).toBe("far"); // > 2 days
+    expect(injectionUrgency(ahead(47.9), noon)).toBe("soon"); // ≤ 2 days is still "soon"
   });
 });

@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useData } from "@/components/app-provider";
 import { Badge, Button, Card, CardHeader, EmptyState } from "@/components/ui";
-import { CalcIcon, CalendarIcon, ChevronRightIcon, ClockIcon, LogIcon, VialIcon } from "@/components/icons";
+import { CalcIcon, CalendarIcon, ChevronRightIcon, LogIcon, VialIcon } from "@/components/icons";
+import { cn } from "@/lib/ui/cn";
 import { amountLabel, formatTime, relativeDayLabel } from "@/lib/format";
 import { CLINICAL_CONFIRM } from "@/lib/domain/disclaimer";
-import { formatCountdown, occurrencesWithin } from "@/lib/domain/schedule";
+import { formatCountdown, injectionUrgency, occurrencesWithin } from "@/lib/domain/schedule";
 
 /** How far ahead the "upcoming injections" list looks. Fixed at render time. */
 const UPCOMING_WINDOW_MS = 45 * 86_400_000;
@@ -170,8 +171,11 @@ export function DashboardPage() {
                 return (
                   <li key={key} className="flex items-center justify-between gap-3 px-1 py-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className="recent-avatar" aria-hidden>
-                        <ClockIcon className="h-4 w-4" />
+                      <span
+                        aria-hidden
+                        className={cn("inj-ring", `inj-${injectionUrgency(at, now)}`)}
+                      >
+                        {at.getDate()}
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold tabular-nums">
