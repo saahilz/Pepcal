@@ -1,6 +1,9 @@
 services:
   pepcal:
-    image: pepcal:latest
+    # Published by .github/workflows/docker.yml on every push to master.
+    # Update flow: docker compose pull && docker compose up -d
+    # (the build: block stays for local builds via `docker compose build`).
+    image: ghcr.io/saahilz/pepcal:master
     build:
       context: ..
       dockerfile: docker/Dockerfile

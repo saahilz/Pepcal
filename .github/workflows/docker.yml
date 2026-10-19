@@ -1,0 +1,75 @@
+# Builds the VPS Docker image on every push to master and publishes it to
+# GHCR — no Docker needed locally or on the VPS to ship updates.
+#
+#   tags: ghcr.io/saahilz/pepcal:master  (branch)  +  :sha-<commit> (immutable)
+#
+# VPS update flow afterwards:
+#   docker login ghcr.io -u <you>        # once; fine-grained PAT, read:packages
+#   docker pull ghcr.io/saahilz/pepcal:master
+#   docker compose up -d                 # compose uses image: directly
+#
+# NEXT_PUBLIC_* values are baked into the browser bundle at build time. Store
+# them as repository *variables* (Settings → Secrets and variables →
+# Actions → Variables), NOT secrets — they are public by design and vars are
+# readable by non-secrets workflows. Unset vars fall back to demo mode:
+# $GITHUB_ENV would expose them to every later step, so they map to step
+# inputs only.
+name: Build and publish Docker image
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute build-time env (empty = demo-mode image)
+        id: env
+        run: |
+          echo "url=${NEXT_PUBLIC_SUPABASE_URL}" >> "$GITHUB_OUTPUT"
+          echo "key=${NEXT_PUBLIC_SUPABASE_ANON_KEY}" >> "$GITHUB_OUTPUT"
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/saahilz/pepcal
+          tags: |
+            type=raw,value=master,enable={{is_default_branch}}
+            type=sha
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ steps.env.outputs.url }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ steps.env.outputs.key }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
