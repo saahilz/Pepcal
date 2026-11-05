@@ -11,7 +11,58 @@
  * must fire at the exact instant.
  */
 
-import type { Schedule } from "@/lib/data/repository";
+import type { IsoDate, Schedule, ScheduleInput, SchedulePattern } from "@/lib/data/repository";
+
+/* ---- creation helpers ---- */
+
+/**
+ * Pattern for the Weekly / Every-2-weeks choice. Weekly fires on the weekday
+ * of `startDate`; bi-weekly steps 14 days from it.
+ */
+export function repeatPattern(
+  repeat: "weekly" | "biweekly" | "daily" | "every 2 days" | "every 3 days",
+  startDate: IsoDate,
+  timeLocal: string
+): SchedulePattern {
+  if (repeat === "biweekly") return { kind: "everyXDays", intervalDays: 14, timeLocal };
+  if (repeat === "daily") return { kind: "everyXDays", intervalDays: 1, timeLocal };
+  if (repeat === "every 2 days") return { kind: "everyXDays", intervalDays: 2, timeLocal };
+  if (repeat === "every 3 days") return { kind: "everyXDays", intervalDays: 3, timeLocal };
+  const [y, m, d] = startDate.split("-").map(Number);
+  return { kind: "weekdays", weekdays: [new Date(Date.UTC(y, m - 1, d)).getUTCDay()], timeLocal };
+}
+
+/** First `count` firing instants of a not-yet-saved schedule, for previews. */
+export function previewOccurrences(
+  input: ScheduleInput,
+  from: Date = new Date(),
+  count = 2
+): Date[] {
+  const s: Schedule = {
+    id: "preview",
+    userId: "preview",
+    vialId: null,
+    vialNameSnapshot: null,
+    demo: false,
+    createdAt: "",
+    updatedAt: "",
+    enabled: true,
+    amount: input.amount,
+    amountUnit: input.amountUnit,
+    pattern: input.pattern,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    timeZone: input.timeZone,
+    travel: input.travel,
+  };
+  const out: Date[] = [];
+  let cursor: Date | null = from;
+  while (out.length < count && cursor) {
+    cursor = nextOccurrence(s, cursor);
+    if (cursor) out.push(cursor);
+  }
+  return out;
+}
 
 /** Local calendar day, from a UTC instant viewed in a time zone. */
 interface Day {

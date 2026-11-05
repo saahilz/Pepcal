@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { nextOccurrence, occurrencesWithin, formatCountdown, injectionGaugeFraction } from "./schedule";
-import type { Schedule } from "@/lib/data/repository";
+import {
+  nextOccurrence,
+  occurrencesWithin,
+  formatCountdown,
+  injectionGaugeFraction,
+  repeatPattern,
+  previewOccurrences,
+} from "./schedule";
+import type { Schedule, ScheduleInput } from "@/lib/data/repository";
 
 const monWedFri: Schedule = {
   id: "s1",
@@ -122,5 +129,57 @@ describe("injectionGaugeFraction", () => {
   it("clamps past-due and far-out dosages to the ends", () => {
     expect(injectionGaugeFraction(new Date(now.getTime() - 3600000), now)).toBe(1);
     expect(injectionGaugeFraction(new Date(now.getTime() + 3 * week), now)).toBe(0);
+  });
+});
+
+describe("repeatPattern", () => {
+  // 2026-10-19 is a Monday; 2026-10-20 is a Tuesday.
+  it("weekly fires on the weekday of the start date", () => {
+    expect(repeatPattern("weekly", "2026-10-19", "09:00")).toEqual({
+      kind: "weekdays",
+      weekdays: [1],
+      timeLocal: "09:00",
+    });
+    expect(repeatPattern("weekly", "2026-10-20", "08:30")).toEqual({
+      kind: "weekdays",
+      weekdays: [2],
+      timeLocal: "08:30",
+    });
+  });
+
+  it("biweekly steps 14 days from the start date", () => {
+    expect(repeatPattern("biweekly", "2026-10-19", "20:00")).toEqual({
+      kind: "everyXDays",
+      intervalDays: 14,
+      timeLocal: "20:00",
+    });
+  });
+});
+
+describe("previewOccurrences", () => {
+  const input: ScheduleInput = {
+    vialId: null,
+    vialNameSnapshot: null,
+    amount: 10,
+    amountUnit: "mcg",
+    pattern: { kind: "weekdays", weekdays: [1], timeLocal: "09:00" },
+    startDate: "2026-10-19",
+    endDate: null,
+    timeZone: "UTC",
+    travel: "homeTimeZone",
+    enabled: true,
+  };
+
+  it("lists the first N firings after the reference instant", () => {
+    const out = previewOccurrences(input, new Date("2026-10-18T17:00:00Z"), 2);
+    expect(out).toEqual([
+      new Date("2026-10-19T09:00:00Z"),
+      new Date("2026-10-26T09:00:00Z"),
+    ]);
+  });
+
+  it("honours the count argument", () => {
+    expect(previewOccurrences(input, new Date("2026-10-18T17:00:00Z"), 1)).toHaveLength(1);
+    expect(previewOccurrences(input, new Date("2026-10-18T17:00:00Z"), 3)).toHaveLength(3);
   });
 });

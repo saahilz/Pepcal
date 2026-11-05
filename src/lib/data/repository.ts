@@ -22,6 +22,8 @@ import type {
   IsoDate,
   IsoUtc,
   Schedule,
+  SchedulePattern,
+  TravelPreference,
   UserRef,
   UserSettings,
   Vial,
@@ -36,6 +38,8 @@ export type {
   IsoDate,
   IsoUtc,
   Schedule,
+  SchedulePattern,
+  TravelPreference,
   UserRef,
   UserSettings,
   Vial,
@@ -81,6 +85,23 @@ export interface WeightInput {
   demo?: boolean;
 }
 
+/**
+ * Fields a user submits when creating or editing a schedule. `vialId` may be
+ * null — a schedule can exist without a linked vial (e.g. a one-off dose).
+ */
+export interface ScheduleInput {
+  vialId: string | null;
+  vialNameSnapshot: string | null;
+  amount: number;
+  amountUnit: AmountUnit;
+  pattern: SchedulePattern;
+  startDate: IsoDate;
+  endDate: IsoDate | null;
+  timeZone: string;
+  travel: TravelPreference;
+  enabled: boolean;
+}
+
 export interface Repository {
   readonly kind: RepoKind;
 
@@ -124,6 +145,8 @@ export interface Repository {
   /** Delete all rows for the current user (demo repo only; real deletion in settings). */
   deleteAllUserData(): Promise<void>;
 
-  /* ---- Scheduling — reserved for phase 2 ---- */
+  /* ---- Scheduling (read + write) ---- */
   listSchedules(): Promise<Schedule[]>;
+  saveSchedule(input: ScheduleInput & { id?: string }): Promise<Schedule>;
+  deleteSchedule(id: string): Promise<void>;
 }

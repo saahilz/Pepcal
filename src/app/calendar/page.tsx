@@ -3,7 +3,9 @@
 import { useEffect, useState, type ElementType } from "react";
 import { useData } from "@/components/app-provider";
 import { Button, Card, CardHeader } from "@/components/ui";
-import { ChevronRightIcon } from "@/components/icons";
+import { ChevronRightIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { ScheduleDialog } from "@/components/schedule-dialog";
+import { useToast } from "@/components/toast-provider";
 import { cn } from "@/lib/ui/cn";
 import { addMonths, buildMonthGrid } from "@/lib/domain/calendar";
 import { occurrencesWithin } from "@/lib/domain/schedule";
@@ -31,9 +33,13 @@ interface InjectionRow {
 }
 
 export default function CalendarPage() {
-  const { injections, schedules } = useData();
+  const { injections, schedules, deleteSchedule } = useData();
+  const { show } = useToast();
   const now = new Date();
   const [cursor, setCursor] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  const [creating, setCreating] = useState(false);
+  const [openSchedules, setOpenSchedules] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   // Tapped day (touch has no hover): pins its tooltip until tapped again or
   // dismissed via the backdrop.
   const [pinnedKey, setPinnedKey] = useState<string | null>(null);
@@ -89,12 +95,98 @@ export default function CalendarPage() {
     d.getDate() === now.getDate();
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
-      <p className="mt-1 text-sm text-muted">
-        Month view of your records and upcoming schedules. Hover or tap a marked day
-        for details. Reminders arrive in the next phase.
-      </p>
+    <div className="mx-auto max-w-2xl">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
+          <p className="mt-1 text-sm text-muted">
+            Month view of your records and upcoming schedules. Hover or tap a marked
+            day for details. Reminders arrive in the next phase.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setOpenSchedules((v) => !v)}
+            aria-expanded={openSchedules}
+          >
+            {schedules.length} scheduled
+          </Button>
+          <Button size="sm" onClick={() => setCreating((v) => !v)} aria-expanded={creating}>
+            <span className="flex items-center gap-1.5">
+              <PlusIcon className="h-4 w-4" />
+              Schedule
+            </span>
+          </Button>
+        </div>
+      </div>
+
+      {creating ? (
+        <ScheduleDialog
+          onClose={() => setCreating(false)}
+          onCreated={(label) => {
+            setCreating(false);
+            setSelectedDay(null);
+            show(`Schedule created — ${label}`);
+          }}
+          onError={(message) => show(message)}
+          defaultStartDate={selectedDay ?? undefined}
+        />
+      ) : null}
+
+      {openSchedules ? (
+        <Card className="mt-4">
+          <CardHeader title="Your schedules" />
+          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+            {schedules.length === 0 ? (
+              <p className="text-sm text-muted">
+                No schedules yet. Use <strong>Schedule</strong> above, or tick
+                “repeat” when logging an injection.
+              </p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-line">
+                {schedules.map((s) => {
+                  const label = s.pattern.kind === "weekdays"
+                    ? "Weekly"
+                    : s.pattern.intervalDays === 1
+                      ? "Daily"
+                      : s.pattern.intervalDays === 14
+                        ? "Every 2 weeks"
+                        : `Every ${s.pattern.intervalDays} days`;
+                  return (
+                    <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">
+                          {s.vialNameSnapshot ?? "Schedule"} · {amountLabel(s.amount, s.amountUnit)}
+                        </span>
+                        <span className="block text-xs text-muted">
+                          {label} · from {s.startDate.split("-").reverse().join("/")}
+                          {s.enabled ? "" : " · paused"}
+                          {s.demo ? " · Demo" : ""}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={async () => {
+                            await deleteSchedule(s.id).catch(() => show("Could not remove it."));
+                            show("Schedule removed.");
+                          }}
+                          aria-label={`Remove schedule for ${s.vialNameSnapshot ?? "dose"}`}
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </Card>
+      ) : null}
 
       <Card className="mt-4">
         <CardHeader
@@ -157,22 +249,33 @@ export default function CalendarPage() {
               const key = dayKey(date);
               const rows = inMonth ? (rowsByDay.get(key) ?? null) : null;
               const pinned = pinnedKey === key;
-              const Tag: ElementType = rows ? "button" : "div";
+              const Tag: ElementType = inMonth ? "button" : "div";
               const col = idx % 7;
               const row = Math.floor(idx / 7);
               return (
                 <Tag
                   key={date.getTime()}
-                  type={rows ? "button" : undefined}
-                  onClick={rows ? () => setPinnedKey(pinned ? null : key) : undefined}
+                  type={inMonth ? "button" : undefined}
+                  onClick={
+                    rows
+                      ? () => setPinnedKey(pinned ? null : key)
+                      : inMonth
+                        ? () => {
+                            setSelectedDay(key);
+                            setCreating(true);
+                          }
+                        : undefined
+                  }
                   aria-label={
                     rows
                       ? rows.map((r) => `${r.at} ${r.kind}: ${r.vial}, ${r.dose}`).join("; ")
-                      : undefined
+                      : inMonth
+                        ? `Schedule for ${date.toDateString()}`
+                        : undefined
                   }
                   className={cn(
                     "group relative flex aspect-square flex-col items-center justify-center gap-1 rounded-xl text-sm sm:rounded-2xl",
-                    rows && "cursor-pointer hover:bg-surface-2/60 active:bg-surface-2"
+                    inMonth && "cursor-pointer hover:bg-surface-2/60 active:bg-surface-2"
                   )}
                   {...(today ? { "aria-current": "date" as const } : {})}
                 >

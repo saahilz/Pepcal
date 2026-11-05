@@ -14,8 +14,9 @@ import { useRouter } from "next/navigation";
 import type { AmountUnit } from "@/lib/domain/units";
 import { toMcg } from "@/lib/domain/units";
 import { parseDecimal } from "@/lib/domain/calculator";
-import type { InjectionInput, InjectionLog } from "@/lib/data/repository";
+import type { InjectionInput, InjectionLog, ScheduleInput } from "@/lib/data/repository";
 import { isoToLocalInputValue, localInputToIso, relativeDayLabel, trimNumber } from "@/lib/format";
+import { repeatPattern } from "@/lib/domain/schedule";
 import { Button, Card, Field, Input, Select, Segmented, Textarea } from "@/components/ui";
 import { useData } from "@/components/app-provider";
 import { useToast } from "@/components/toast-provider";
@@ -42,7 +43,7 @@ export function InjectionForm({
   prefill?: InjectionPrefill;
 }) {
   const router = useRouter();
-  const { vials, injections, saveInjection } = useData();
+  const { vials, injections, saveInjection, saveSchedule } = useData();
   const { show } = useToast();
 
   const [vialId, setVialId] = useState<string>(existing?.vialId ?? prefill?.vialId ?? "");
@@ -59,6 +60,10 @@ export function InjectionForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const selectedVial = vials.find((v) => v.id === vialId);
+  // Repeat choice: log once (default), weekly on the administered day, or
+  // every 2 weeks. Only meaningful for a new injection — editing a past log
+  // can't retroactively change what happened.
+  const [repeat, setRepeat] = useState<"none" | "weekly" | "biweekly">("none");
   const amountNum = parseDecimal(amount);
   const concNum = parseDecimal(concMcg);
 
@@ -121,7 +126,39 @@ export function InjectionForm({
     };
     try {
       await saveInjection(input);
-      show(existing ? "Injection updated." : "Injection logged.");
+
+      // "Repeat" only applies to a new injection: editing a past log can't
+      // retroactively change what happened, so a schedule is never created.
+      if (!existing && repeat !== "none" && vial) {
+        const startDate = adminIso.slice(0, 10);
+        const timeLocal = adminIso.slice(11, 16);
+        const scheduleInput: ScheduleInput = {
+          vialId: vial.id,
+          vialNameSnapshot: vial.name,
+          amount: amountNum!,
+          amountUnit: unit,
+          pattern: repeatPattern(repeat, startDate, timeLocal),
+          startDate,
+          endDate: null,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC",
+          travel: "homeTimeZone",
+          enabled: true,
+        };
+        try {
+          await saveSchedule(scheduleInput);
+          show(
+            repeat === "weekly"
+              ? "Injection logged — scheduled weekly from today."
+              : "Injection logged — scheduled every 2 weeks from today."
+          );
+        } catch {
+          // The injection itself saved; surface a soft error so the user
+          // isn't stranded with an orphaned record.
+          show("Injection logged, but the repeat schedule couldn't be created.");
+        }
+      } else {
+        show(existing ? "Injection updated." : "Injection logged.");
+      }
       router.push("/history");
     } catch (err) {
       show(err instanceof Error ? err.message : "Could not save the injection.");
@@ -250,6 +287,26 @@ export function InjectionForm({
           />
         </Field>
       </Card>
+
+      <div className="flex flex-col gap-3">
+        <Segmented
+          label="Repeat"
+          value={repeat}
+          onChange={setRepeat}
+          options={[
+            { value: "none", label: "Log once" },
+            { value: "weekly", label: "Weekly" },
+            { value: "biweekly", label: "Every 2 weeks" },
+          ]}
+          className="w-full sm:w-auto"
+        />
+        {repeat !== "none" ? (
+          <p className="rounded-xl bg-info-soft px-3 py-2 text-xs font-medium text-info">
+            A schedule starts from this injection — doses appear on the calendar
+            grid and in the dashboard countdown.
+          </p>
+        ) : null}
+      </div>
 
       <div className="flex gap-2">
         <Button size="lg" onClick={handleSave} block>

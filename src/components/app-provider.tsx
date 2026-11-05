@@ -25,6 +25,7 @@ import type {
   RepoKind,
   Repository,
   Schedule,
+  ScheduleInput,
   Vial,
   VialInput,
   WeightEntry,
@@ -52,6 +53,8 @@ interface DataContextValue {
   deleteInjection: (id: string) => Promise<void>;
   saveWeight: (input: WeightInput & { id?: string }) => Promise<WeightEntry>;
   deleteWeight: (id: string) => Promise<void>;
+  saveSchedule: (input: ScheduleInput & { id?: string }) => Promise<Schedule>;
+  deleteSchedule: (id: string) => Promise<void>;
   updateSettings: (patch: Parameters<Repository["updateSettings"]>[0]) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
@@ -217,6 +220,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [refresh]
   );
 
+  const saveSchedule = useCallback(
+    async (input: ScheduleInput & { id?: string }) => {
+      const saved = await repoRef.current!.saveSchedule(input);
+      await refresh();
+      return saved;
+    },
+    [refresh]
+  );
+
+  const deleteSchedule = useCallback(
+    async (id: string) => {
+      await repoRef.current!.deleteSchedule(id);
+      await refresh();
+    },
+    [refresh]
+  );
+
   const updateSettings = useCallback(
     async (patch: Parameters<Repository["updateSettings"]>[0]) => {
       await repoRef.current!.updateSettings(patch);
@@ -284,6 +304,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         deleteInjection,
         saveWeight,
         deleteWeight,
+        saveSchedule,
+        deleteSchedule,
         updateSettings,
         signInWithGoogle,
         signInWithEmail,

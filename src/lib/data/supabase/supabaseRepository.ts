@@ -16,6 +16,7 @@ import type {
   InjectionInput,
   InjectionLog,
   Repository,
+  ScheduleInput,
   UserRef,
   UserSettings,
   Vial,
@@ -467,7 +468,7 @@ export const supabaseRepository: Repository = {
     };
   },
 
-  /* ---- schedules (read; phase 2 wires writes + occurrences) ---- */
+  /* ---- schedules (read + write) ---- */
 
   async listSchedules(): Promise<Schedule[]> {
     const userId = await requireUser();
@@ -479,6 +480,50 @@ export const supabaseRepository: Repository = {
       .order("created_at", { ascending: false });
     if (error) errorOrThrow(error);
     return (data as DbSchedule[]).map(toSchedule);
+  },
+
+  async saveSchedule(input: ScheduleInput & { id?: string }): Promise<Schedule> {
+    const userId = await requireUser();
+    if (!userId) throw new Error("Authentication required.");
+    const supabase = getSupabase();
+    const base = {
+      vial_id: nullable(input.vialId),
+      vial_name_snapshot: nullable(input.vialNameSnapshot),
+      amount: input.amount,
+      amount_unit: input.amountUnit,
+      pattern: input.pattern,
+      start_date: input.startDate,
+      end_date: nullable(input.endDate),
+      time_zone: input.timeZone,
+      travel: input.travel,
+      enabled: input.enabled,
+      updated_at: new Date().toISOString(),
+    };
+    if (input.id) {
+      const { data, error } = await supabase
+        .from("schedules")
+        .update(base)
+        .eq("id", input.id)
+        .select("*")
+        .single();
+      if (error) errorOrThrow(error);
+      return toSchedule(data as DbSchedule);
+    }
+    const { data, error } = await supabase
+      .from("schedules")
+      .insert({ ...base, user_id: userId })
+      .select("*")
+      .single();
+    if (error) errorOrThrow(error);
+    return toSchedule(data as DbSchedule);
+  },
+
+  async deleteSchedule(id: string): Promise<void> {
+    const userId = await requireUser();
+    if (!userId) throw new Error("Authentication required.");
+    const supabase = getSupabase();
+    const { error } = await supabase.from("schedules").delete().eq("id", id);
+    if (error) errorOrThrow(error);
   },
 
   /* ---- demo-data lifecycle ---- */

@@ -15,6 +15,7 @@ import type {
   InjectionLog,
   Repository,
   Schedule,
+  ScheduleInput,
   UserRef,
   UserSettings,
   Vial,
@@ -267,5 +268,41 @@ export const localDemoRepository: Repository = {
   async listSchedules(): Promise<Schedule[]> {
     const { schedules } = readDb();
     return [...schedules].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  }
+  },
+
+  async saveSchedule(input: ScheduleInput & { id?: string }): Promise<Schedule> {
+    const db = readDb();
+    const now = new Date().toISOString();
+    if (input.id) {
+      const existing = db.schedules.find((s) => s.id === input.id);
+      if (!existing) throw new Error(`Schedule ${input.id} not found`);
+      const updated: Schedule = {
+        ...existing,
+        ...input,
+        id: existing.id,
+        createdAt: existing.createdAt,
+        updatedAt: now,
+      };
+      db.schedules = db.schedules.map((s) => (s.id === input.id ? updated : s));
+      writeDb(db);
+      return updated;
+    }
+    const created: Schedule = {
+      id: newId(),
+      userId: DEMO_USER_ID,
+      createdAt: now,
+      updatedAt: now,
+      demo: false,
+      ...input,
+    };
+    db.schedules.push(created);
+    writeDb(db);
+    return created;
+  },
+
+  async deleteSchedule(id: string): Promise<void> {
+    const db = readDb();
+    db.schedules = db.schedules.filter((s) => s.id !== id);
+    writeDb(db);
+  },
 };
