@@ -164,6 +164,21 @@ body {
   }
 }
 
+/* Subtle expanding ring on the body-map's least-recently-used marker — a
+   visual nudge only, never a recommendation. */
+@keyframes site-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--ok) 0%, transparent);
+  }
+}
+.site-pulse {
+  animation: site-pulse 2.4s ease-in-out infinite;
+}
+
 /* Keep touch targets comfortable and prevent iOS zoom on field focus. */
 input,
 select,

@@ -17,7 +17,7 @@ import { parseDecimal } from "@/lib/domain/calculator";
 import type { InjectionInput, InjectionLog, ScheduleInput } from "@/lib/data/repository";
 import { isoToLocalInputValue, localInputToIso, relativeDayLabel, trimNumber } from "@/lib/format";
 import { repeatPattern } from "@/lib/domain/schedule";
-import { zoneForLabel } from "@/lib/domain/site";
+import { INJECTION_ZONES, type InjectionZone, zoneForLabel } from "@/lib/domain/site";
 import { Button, Card, Field, Input, Select, Segmented, Textarea } from "@/components/ui";
 import { BodySitePicker } from "@/components/body-site-picker";
 import { SyringeScale } from "@/components/syringe-scale";
@@ -53,20 +53,34 @@ export function InjectionForm({
 
   const [vialId, setVialId] = useState<string>(existing?.vialId ?? prefill?.vialId ?? "");
   const [amount, setAmount] = useState(existing ? String(existing.amount) : prefill?.amount ?? "");
-  const [unit, setUnit] = useState<AmountUnit>(existing?.amountUnit ?? prefill?.unit ?? "mcg");
+  const [unit, setUnit] = useState<AmountUnit>(existing?.amountUnit ?? prefill?.unit ?? "mg");
   const [concMcg, setConcMcg] = useState(
     existing?.concentrationMcgPerMl != null ? String(existing.concentrationMcgPerMl) : prefill?.concMcg ?? ""
   );
   const [adminLocal, setAdminLocal] = useState(
-    existing?.administeredAt ? isoToLocalInputValue(existing.administeredAt) : localInputToIso(new Date().toISOString())
+    existing?.administeredAt
+      ? isoToLocalInputValue(existing.administeredAt)
+      : isoToLocalInputValue(new Date().toISOString())
   );
   const [locationLabel, setLocationLabel] = useState(existing?.location?.label ?? "");
+  const [customOpen, setCustomOpen] = useState(() =>
+    /* Editing a record whose stored label isn't a zone: reveal the text input
+       so the existing wording stays visible instead of resetting to "—". */
+    existing?.location?.label ? !zoneForLabel(existing.location.label) : false
+  );
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  /* Tap a zone or type text — both set locationLabel. The zone table supplies
-     the marker coordinates, so an old hand-typed "Left abdomen" gains its
-     coords on save, and custom text keeps the record's own coords. */
+  /* The dropdown, the body map and the "previously used" pills all funnel
+     through selectZone: any one of them sets locationLabel, and the other two
+     read it back. The zone table supplies the marker coordinates, so an old
+     hand-typed "Left abdomen" gains its coords on save, and custom text
+     keeps the record's own coords. */
+  function selectZone(zone: InjectionZone | null) {
+    setCustomOpen(false);
+    setLocationLabel(zone ? zone.label : "");
+  }
+
   const chosenZone = zoneForLabel(locationLabel);
   const location = chosenZone
     ? { view: "front" as const, x: chosenZone.x, y: chosenZone.y, label: chosenZone.label }
@@ -265,21 +279,46 @@ export function InjectionForm({
         <Field
           label="Where it went in (optional)"
           htmlFor="inj-loc"
-          hint="Tap a zone on the body map, or type your own wording. Documentation only — no site is endorsed or recommended."
+          hint="Pick from the map or the menu, or type your own wording. Documentation only — no site is endorsed or recommended."
         >
-          <Input
+          <Select
             id="inj-loc"
-            value={locationLabel}
-            onChange={(e) => setLocationLabel(e.target.value)}
-            placeholder="e.g. Left abdomen"
-            autoComplete="off"
-          />
+            value={chosenZone?.id ?? (customOpen ? "custom" : "")}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (next === "custom") {
+                setCustomOpen(true);
+                setLocationLabel("");
+                return;
+              }
+              setCustomOpen(false);
+              selectZone(next ? INJECTION_ZONES.find((z) => z.id === next) ?? null : null);
+            }}
+          >
+            <option value="">[Select injection location…]</option>
+            {INJECTION_ZONES.map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.label}
+              </option>
+            ))}
+            <option value="custom">Custom / Other…</option>
+          </Select>
+          {customOpen ? (
+            <Input
+              className="mt-2"
+              value={locationLabel}
+              onChange={(e) => setLocationLabel(e.target.value)}
+              placeholder="e.g. Left buttock"
+              autoComplete="off"
+              autoFocus
+            />
+          ) : null}
         </Field>
 
         <BodySitePicker
           label={locationLabel}
           injections={injections.map((i) => ({ administeredAt: i.administeredAt, location: i.location }))}
-          onSelect={(zone) => setLocationLabel(zone.label)}
+          onSelect={selectZone}
         />
 
 
@@ -291,7 +330,16 @@ export function InjectionForm({
                 <button
                   key={label}
                   type="button"
-                  onClick={() => setLocationLabel(label)}
+                  onClick={() => {
+                    const zone = zoneForLabel(label);
+                    if (zone) {
+                      setCustomOpen(false);
+                      selectZone(zone);
+                    } else {
+                      setCustomOpen(true);
+                      setLocationLabel(label);
+                    }
+                  }}
                   className="tap-slop-y rounded-full border border-line bg-surface-2 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-2/60"
                 >
                   {label}

@@ -7,6 +7,10 @@
  *
  * Record-keeping only: "least recently used" reads the user's own log to keep
  * a rotation they already perform visible. Pepcal never recommends a site.
+ *
+ * Outstretched "Vitruvian" pose: arms raised wide and legs in an athletic
+ * stance so all six zones (site.ts coords) stay visually separate AND their
+ * 44px tap areas don't overlap at the smallest render size.
  */
 
 import { ClockIcon } from "@/components/icons";
@@ -36,15 +40,31 @@ export function BodySitePicker({
     <div role="group" aria-label="Injection site" className="flex flex-col items-center gap-2">
       <div className="relative inline-flex">
         {/* Neutral front silhouette; zone coords (site.ts) are fractions of this box. */}
-        <svg viewBox="0 0 120 200" className="block h-52 w-auto select-none" aria-hidden="true">
+        <svg
+          viewBox="0 0 250 200"
+          className="block h-52 w-auto max-w-full select-none"
+          aria-hidden="true"
+        >
           <g fill="var(--surface-2)" stroke="var(--line-strong)" strokeWidth={1.5}>
-            <circle cx="60" cy="15" r="10" />
-            <rect x="56" y="24" width="8" height="7" />
-            <rect x="45" y="30" width="30" height="58" rx="12" />
-            <rect x="27" y="34" width="12" height="50" rx="6" />
-            <rect x="81" y="34" width="12" height="50" rx="6" />
-            <rect x="45" y="92" width="13" height="98" rx="6" />
-            <rect x="62" y="92" width="13" height="98" rx="6" />
+            {/* Head + neck */}
+            <circle cx="125" cy="16" r="11" />
+            <path d="M118 26 h14 v7 h-14 Z" />
+            {/* Torso: chest tapering to hips; the midline divides L/R abdomen */}
+            <path d="M125 33 C112 33 96 39 93 52 L99 72 L104 104 C110 110 116 112 125 112 C134 112 140 110 146 104 L151 72 L157 52 C154 39 138 33 125 33 Z" />
+            {/* Navel — the midline landmark between the abdomen zones */}
+            <circle cx="125" cy="88" r="2" fill="var(--line-strong)" stroke="none" />
+            {/* Arms outstretched up and out, fully clear of the torso */}
+            <path d="M96 42 L34 12 L26 20 L92 56 Z" />
+            <path d="M154 42 L216 12 L224 20 L158 56 Z" />
+            {/* Hands */}
+            <circle cx="28" cy="14" r="7" />
+            <circle cx="222" cy="14" r="7" />
+            {/* Legs spread in an athletic stance */}
+            <path d="M104 112 L86 190 L100 192 L120 116 Z" />
+            <path d="M146 112 L164 190 L150 192 L130 116 Z" />
+            {/* Feet */}
+            <path d="M82 188 L102 190 L100 197 L78 195 Z" />
+            <path d="M168 188 L148 190 L150 197 L172 195 Z" />
           </g>
         </svg>
         {INJECTION_ZONES.map((z) => {
@@ -67,14 +87,14 @@ export function BodySitePicker({
               aria-label={tags}
               aria-pressed={isSel}
               onClick={() => onSelect(z)}
-              style={{ left: `${z.x * 100}%`, top: `${z.y * 100}%` }}
+              style={{ left: `${(z.x * 250)}px`, top: `${(z.y * 200)}px` }}
               className={cn(
                 "tap-slop absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border transition-colors",
                 isSel
                   ? "border-brand bg-brand"
                   : "border-dashed border-line-strong bg-surface/70 hover:bg-surface-2",
                 isLast && "border-solid border-info ring-2 ring-info/50",
-                isNext && "border-solid border-ok ring-2 ring-ok/50"
+                isNext && "site-pulse border-solid border-ok ring-2 ring-ok/50"
               )}
             >
               <span

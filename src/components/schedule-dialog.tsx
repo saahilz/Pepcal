@@ -22,8 +22,8 @@ const PREVIEW_FMT = new Intl.DateTimeFormat(undefined, {
 });
 
 const UNITS: { value: AmountUnit; label: string }[] = [
-  { value: "mcg", label: "mcg" },
   { value: "mg", label: "mg" },
+  { value: "mcg", label: "mcg" },
 ];
 
 function todayIso(): string {
@@ -73,7 +73,7 @@ export function ScheduleDialog({
     const last = [...injections].toReversed().find((i) => i.vialId === id);
     const v = vials.find((x) => x.id === id);
     if (last) return { amount: String(last.amount), unit: last.amountUnit };
-    return { amount: "", unit: v?.vialUnit ?? "mcg" };
+    return { amount: "", unit: v?.vialUnit ?? "mg" };
   }
 
   const [vialId, setVialId] = useState(vials[0]?.id ?? "");

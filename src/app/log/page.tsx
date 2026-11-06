@@ -37,13 +37,13 @@ function LogPageContent() {
   const prefill: InjectionPrefill | undefined = hasCalcPrefill
     ? {
         amount: params.get("amount") ?? "",
-        unit: (params.get("unit") as AmountUnit) ?? "mcg",
+        unit: (params.get("unit") as AmountUnit) ?? "mg",
         concMcg: params.get("concMcg") ?? "",
         concMg: params.get("concMg") ?? "",
         vialId,
       }
     : vialId
-      ? { amount: "", unit: "mcg", concMcg: "", concMg: "", vialId }
+      ? { amount: "", unit: "mg", concMcg: "", concMg: "", vialId }
       : undefined;
 
   return (

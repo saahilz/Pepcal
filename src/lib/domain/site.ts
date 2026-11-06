@@ -29,14 +29,19 @@ export interface InjectionZone {
   y: number;
 }
 
-/** viewBox is 120×200 in the picker; coords below are that ÷ size. */
+/** viewBox is 250×200 in the picker; coords below are that ÷ size. Spread to
+ *  match the outstretched Vitruvian silhouette: each center sits on its limb
+ *  midline, and at the picker's h-52 render size no two markers come closer
+ *  than the 44px tap-slop target — the abdomen pair flank the navel without
+ *  their hit areas stealing each other's taps. (Old 120×200 coords stored on
+ *  custom-text records are never re-rendered; only zone labels are read back.) */
 export const INJECTION_ZONES: InjectionZone[] = [
-  { id: "arm_left", label: "Left arm", x: 30 / 120, y: 90 / 200 },
-  { id: "arm_right", label: "Right arm", x: 90 / 120, y: 90 / 200 },
-  { id: "abdomen_left", label: "Left abdomen", x: 51 / 120, y: 88 / 200 },
-  { id: "abdomen_right", label: "Right abdomen", x: 69 / 120, y: 88 / 200 },
-  { id: "thigh_left", label: "Left thigh", x: 50 / 120, y: 155 / 200 },
-  { id: "thigh_right", label: "Right thigh", x: 70 / 120, y: 155 / 200 },
+  { id: "arm_left", label: "Left arm", x: 70 / 250, y: 42 / 200 },
+  { id: "arm_right", label: "Right arm", x: 180 / 250, y: 42 / 200 },
+  { id: "abdomen_left", label: "Left abdomen", x: 99 / 250, y: 88 / 200 },
+  { id: "abdomen_right", label: "Right abdomen", x: 151 / 250, y: 88 / 200 },
+  { id: "thigh_left", label: "Left thigh", x: 95 / 250, y: 149 / 200 },
+  { id: "thigh_right", label: "Right thigh", x: 155 / 250, y: 149 / 200 },
 ];
 
 const BY_LABEL = new Map(INJECTION_ZONES.map((z) => [z.label.toLowerCase(), z]));

@@ -20,6 +20,7 @@ import {
 } from "@/lib/domain/calculator";
 import { measureWithU100, type U100Syringe } from "@/lib/domain/syringe";
 import type { AmountUnit } from "@/lib/domain/units";
+import { formatAmountInUnit } from "@/lib/domain/units";
 import {
   CLINICAL_CONFIRM,
   THEORETICAL_DOSES_NOTE,
@@ -67,7 +68,7 @@ export function CalculatorWidget() {
   const [vialUnit, setVialUnit] = useState<AmountUnit>("mg");
   const [diluentMl, setDiluentMl] = useState("");
   const [doseAmount, setDoseAmount] = useState("");
-  const [doseUnit, setDoseUnit] = useState<AmountUnit>("mcg");
+  const [doseUnit, setDoseUnit] = useState<AmountUnit>("mg");
   const [showU100, setShowU100] = useState(false);
   const [u100Capacity, setU100Capacity] = useState("1");
   const [u100Tick, setU100Tick] = useState("1");
@@ -178,8 +179,8 @@ export function CalculatorWidget() {
   function logThisDose() {
     if (!result) return;
     const q = new URLSearchParams({
-      amount: pretty(result.desiredMcg),
-      unit: "mcg",
+      amount: pretty(formatAmountInUnit(result.desiredMcg, doseUnit)),
+      unit: doseUnit,
       concMcg: pretty(result.concentrationMcgPerMl),
       concMg: pretty(result.concentrationMgPerMl),
       volume: pretty(result.injectionVolumeMl),
