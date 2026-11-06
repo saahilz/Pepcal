@@ -10,13 +10,16 @@
 
 import { useMemo, useState } from "react";
 import { useData } from "@/components/app-provider";
+import { useDiscretion } from "@/components/discretion";
 import { useToast } from "@/components/toast-provider";
-import { Badge, Card, CardHeader, EmptyState, Segmented, Spinner } from "@/components/ui";
+import { Badge, Card, CardHeader, EmptyState, Segmented, Spinner, Toggle } from "@/components/ui";
 import { EditIcon, TrashIcon } from "@/components/icons";
 import { BmiCalculator } from "@/components/weight/bmi-calculator";
-import { WeightChart } from "@/components/weight/weight-chart";
+import { WeightChart, type MarkerTooltip } from "@/components/weight/weight-chart";
 import { WeightForm } from "@/components/weight/weight-form";
+import { useDoseMarkersOn } from "@/components/weight/use-dose-markers";
 import { useWeightUnit } from "@/components/weight/use-weight-unit";
+import { doseMarkers } from "@/lib/domain/dose-markers";
 import {
   fromKg,
   summarizeWeight,
@@ -25,7 +28,7 @@ import {
   weightLabel,
   type WeightUnit,
 } from "@/lib/domain/weight";
-import { formatDate, formatTime, relativeDayLabel } from "@/lib/format";
+import { amountLabel, formatDate, formatTime, relativeDayLabel } from "@/lib/format";
 
 const UNIT_OPTIONS: { value: WeightUnit; label: string }[] = [
   { value: "kg", label: "kg" },
@@ -33,13 +36,56 @@ const UNIT_OPTIONS: { value: WeightUnit; label: string }[] = [
 ];
 
 export default function WeightPage() {
-  const { status, weights, deleteWeight } = useData();
+  const { status, weights, injections, deleteWeight } = useData();
+  const { mask } = useDiscretion();
   const { show } = useToast();
   const [unit, setUnit] = useWeightUnit();
+  const [markersOn, setMarkersOn] = useDoseMarkersOn();
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const points = useMemo(() => toWeightPoints(weights), [weights]);
   const summary = useMemo(() => summarizeWeight(points), [points]);
+
+  /* One pin per administration instant; doses sharing an instant (same
+     timestamp) group into a single tooltip. Delta comes from the interpolation
+     in domain/dose-markers — the line at that date minus the line at the
+     previous dose's date, null until there is a line under both. */
+  const doseEvents = useMemo(() => {
+    if (!markersOn) return [];
+    const byTime = new Map<number, string[]>();
+    for (const inj of injections) {
+      const at = new Date(inj.administeredAt).getTime();
+      if (!Number.isFinite(at)) continue;
+      const names = byTime.get(at);
+      const line = `${amountLabel(inj.amount, inj.amountUnit)} ${mask(inj.vialNameSnapshot, "compound", { fallback: "Injection" })}`;
+      if (names) names.push(line);
+      else byTime.set(at, [line]);
+    }
+    // One pin per instant: several doses at the same timestamp share a tip.
+    return doseMarkers(
+      [...byTime.entries()].map(([at, label]) => ({ at, label })),
+      points
+    );
+  }, [markersOn, injections, points, mask]);
+
+  const markerTimes = useMemo(() => doseEvents.map((d) => d.at), [doseEvents]);
+
+  const markerContent = useMemo(() => {
+    const byTime = new Map(doseEvents.map((d) => [d.at, d]));
+    return (at: number): MarkerTooltip | null => {
+      const d = byTime.get(at);
+      if (!d) return null;
+      const lines = [...d.label];
+      lines.push(
+        d.isFirst
+          ? "earliest dose on record"
+          : d.deltaKg === null
+            ? "no weight line under this date"
+            : `weight change since previous dose: ${weightDeltaLabel(d.deltaKg, unit)}`
+      );
+      return { title: formatDate(new Date(at).toISOString()), lines };
+    };
+  }, [doseEvents, unit]);
 
   /* Previous reading per id, so every row can show its own step. */
   const previousKg = useMemo(() => {
@@ -135,8 +181,23 @@ export default function WeightPage() {
                 </span>
               }
             />
+            {injections.length > 0 ? (
+              <div className="mx-2 mt-1 sm:mx-3">
+                {/* Over a row of chart controls, where the filter belongs. */}
+                <Toggle
+                  checked={markersOn}
+                  onChange={setMarkersOn}
+                  label="Show Dose Markers"
+                  description="Pins mark logged injections on the timeline."
+                />
+              </div>
+            ) : null}
             <div className="mt-3 px-2 sm:px-3">
-              <WeightChart points={points} unit={unit} />
+              <WeightChart
+                points={points}
+                unit={unit}
+                {...(markersOn && markerTimes.length > 0 ? { markers: markerTimes, markerContent } : {})}
+              />
             </div>
             <p className="mt-2 px-4 text-xs text-subtle sm:px-5">
               Each dot is one recorded reading, spaced by when it was taken — not by how many

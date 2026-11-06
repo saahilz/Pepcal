@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ElementType } from "react";
 import { useData } from "@/components/app-provider";
+import { BlurDose, useDiscretion } from "@/components/discretion";
 import { Button, Card, CardHeader } from "@/components/ui";
 import { ChevronRightIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { ScheduleDialog } from "@/components/schedule-dialog";
@@ -34,6 +35,7 @@ interface InjectionRow {
 
 export default function CalendarPage() {
   const { injections, schedules, deleteSchedule } = useData();
+  const { mask } = useDiscretion();
   const { show } = useToast();
   const now = new Date();
   const [cursor, setCursor] = useState({ year: now.getFullYear(), month: now.getMonth() });
@@ -64,7 +66,7 @@ export default function CalendarPage() {
       {
         kind: "logged" as const,
         at: formatTime(i.administeredAt),
-        vial: i.vialNameSnapshot ?? "No linked vial",
+        vial: mask(i.vialNameSnapshot, "compound", { fallback: "No linked vial" }),
         dose: amountLabel(i.amount, i.amountUnit),
       },
     ]);
@@ -83,7 +85,10 @@ export default function CalendarPage() {
       {
         kind: "scheduled" as const,
         at: formatTime(o.at.toISOString()),
-        vial: o.schedule.vialNameSnapshot ?? "Scheduled",
+        vial: mask(o.schedule.vialNameSnapshot, "protocol", {
+          seed: o.schedule.id,
+          fallback: "Scheduled",
+        }),
         dose: amountLabel(o.schedule.amount, o.schedule.amountUnit),
       },
     ]);
@@ -158,7 +163,8 @@ export default function CalendarPage() {
                     <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">
-                          {s.vialNameSnapshot ?? "Schedule"} · {amountLabel(s.amount, s.amountUnit)}
+                          {mask(s.vialNameSnapshot, "protocol", { seed: s.id, fallback: "Schedule" })} ·{" "}
+                          <BlurDose>{amountLabel(s.amount, s.amountUnit)}</BlurDose>
                         </span>
                         <span className="block text-xs text-muted">
                           {label} · from {s.startDate.split("-").reverse().join("/")}
@@ -174,7 +180,7 @@ export default function CalendarPage() {
                             await deleteSchedule(s.id).catch(() => show("Could not remove it."));
                             show("Schedule removed.");
                           }}
-                          aria-label={`Remove schedule for ${s.vialNameSnapshot ?? "dose"}`}
+                          aria-label={`Remove schedule for ${mask(s.vialNameSnapshot, "protocol", { seed: s.id, fallback: "dose" })}`}
                         >
                           <TrashIcon className="h-4 w-4" />
                         </Button>
@@ -326,7 +332,7 @@ export default function CalendarPage() {
                               {r.at} · {r.kind === "logged" ? "Logged" : "Scheduled"}
                             </span>
                             <span className="block truncate text-xs text-muted">
-                              {r.vial} · {r.dose}
+                              {r.vial} · <BlurDose>{r.dose}</BlurDose>
                             </span>
                           </span>
                         </span>

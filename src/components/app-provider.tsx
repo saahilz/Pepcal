@@ -20,8 +20,10 @@ import {
 } from "react";
 import { loadRepository } from "@/lib/data";
 import type {
+  DailyIntake,
   InjectionInput,
   InjectionLog,
+  IntakeInput,
   RepoKind,
   Repository,
   Schedule,
@@ -45,6 +47,8 @@ interface DataContextValue {
   schedules: Schedule[];
   /** Chronological, oldest first. */
   weights: WeightEntry[];
+  /** The user's logged protein/water days (most recent first). */
+  intakes: DailyIntake[];
   settings: UserSettings;
 
   saveVial: (input: VialInput & { id?: string }) => Promise<Vial>;
@@ -53,6 +57,7 @@ interface DataContextValue {
   deleteInjection: (id: string) => Promise<void>;
   saveWeight: (input: WeightInput & { id?: string }) => Promise<WeightEntry>;
   deleteWeight: (id: string) => Promise<void>;
+  saveIntake: (input: IntakeInput) => Promise<DailyIntake>;
   saveSchedule: (input: ScheduleInput & { id?: string }) => Promise<Schedule>;
   deleteSchedule: (id: string) => Promise<void>;
   updateSettings: (patch: Parameters<Repository["updateSettings"]>[0]) => Promise<void>;
@@ -69,6 +74,8 @@ const emptySettings: UserSettings = {
   timeZone: null,
   travel: "homeTimeZone",
   remindersEnabled: false,
+  proteinTargetG: null,
+  waterTargetMl: null,
   updatedAt: "",
 };
 
@@ -84,26 +91,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [injections, setInjections] = useState<InjectionLog[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [weights, setWeights] = useState<WeightEntry[]>([]);
+  const [intakes, setIntakes] = useState<DailyIntake[]>([]);
   const [settings, setSettings] = useState<UserSettings>(emptySettings);
   const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
     const repo = repoRef.current;
     if (!repo) return;
-    const [nextUser, nextVials, nextInjections, nextSchedules, nextWeights, nextSettings] = await Promise.all([
-      repo.currentUser(),
-      repo.listVials(),
-      repo.listInjections(),
-      repo.listSchedules(),
-      repo.listWeights(),
-      repo.getSettings(),
-    ]);
+    const [nextUser, nextVials, nextInjections, nextSchedules, nextWeights, nextIntakes, nextSettings] =
+      await Promise.all([
+        repo.currentUser(),
+        repo.listVials(),
+        repo.listInjections(),
+        repo.listSchedules(),
+        repo.listWeights(),
+        repo.listIntakes(),
+        repo.getSettings(),
+      ]);
     if (!mountedRef.current) return;
     setUser(nextUser);
     setVials(nextVials);
     setInjections(nextInjections);
     setSchedules(nextSchedules);
     setWeights(nextWeights);
+    setIntakes(nextIntakes);
     setSettings(nextSettings);
   }, []);
 
@@ -135,6 +146,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
               setInjections([]);
               setSchedules([]);
               setWeights([]);
+              setIntakes([]);
               setSettings(emptySettings);
             },
             setError: (authError) => {
@@ -220,6 +232,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [refresh]
   );
 
+  const saveIntake = useCallback(
+    async (input: IntakeInput) => {
+      const saved = await repoRef.current!.saveIntake(input);
+      await refresh();
+      return saved;
+    },
+    [refresh]
+  );
+
   const saveSchedule = useCallback(
     async (input: ScheduleInput & { id?: string }) => {
       const saved = await repoRef.current!.saveSchedule(input);
@@ -297,6 +318,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         injections,
         schedules,
         weights,
+        intakes,
         settings,
         saveVial,
         deleteVial,
@@ -304,6 +326,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         deleteInjection,
         saveWeight,
         deleteWeight,
+        saveIntake,
         saveSchedule,
         deleteSchedule,
         updateSettings,

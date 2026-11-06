@@ -131,6 +131,22 @@ export interface WeightEntry {
   demo: boolean;
 }
 
+/**
+ * One day's companion log ("daily_intake") — protein and fluid recorded
+ * against a calendar date. Record-keeping only: what the user logged, with
+ * targets they set themselves. Keyed by (user, day); there is no `id` because
+ * there is exactly one row per day.
+ */
+export interface DailyIntake {
+  /** Calendar day, "yyyy-mm-dd" — the viewer's local date at write time. */
+  day: IsoDate;
+  proteinGrams: number;
+  /** Fluid in millilitres. */
+  waterMl: number;
+  /** True when this is seeded fictional demo data. */
+  demo: boolean;
+}
+
 /* ------------------------------------------------------------------ */
 /* Scheduling (spec §5) — shapes reserved now, wired in phase 2.      */
 /* ------------------------------------------------------------------ */
@@ -197,6 +213,12 @@ export interface UserSettings {
   travel: TravelPreference;
   /** Opt-in web-push state; the actual subscription is stored elsewhere. */
   remindersEnabled: boolean;
+  /**
+   * Companion-tracker targets, user-configured in Settings. Null until set —
+   * the UI falls back to the domain defaults (see lib/domain/intake.ts).
+   */
+  proteinTargetG: number | null;
+  waterTargetMl: number | null;
   updatedAt: IsoUtc;
 }
 

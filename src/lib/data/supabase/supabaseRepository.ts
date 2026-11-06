@@ -13,8 +13,10 @@
 
 import { getSupabase } from "./client";
 import type {
+  DailyIntake,
   InjectionInput,
   InjectionLog,
+  IntakeInput,
   Repository,
   ScheduleInput,
   UserRef,
@@ -92,11 +94,22 @@ interface DbWeightEntry {
   demo: boolean;
 }
 
+interface DbDailyIntake {
+  user_id: string;
+  day: string;
+  protein_g: number | null;
+  water_ml: number | null;
+  updated_at: string;
+  demo: boolean;
+}
+
 interface DbSettings {
   user_id: string;
   time_zone: string | null;
   travel: TravelPreference;
   reminders_enabled: boolean;
+  protein_target_g: number | null;
+  water_target_ml: number | null;
   updated_at: string;
 }
 
@@ -184,6 +197,14 @@ function toWeight(r: DbWeightEntry): WeightEntry {
   };
 }
 
+function toIntake(r: DbDailyIntake): DailyIntake {
+  return {
+    day: r.day,
+    proteinGrams: num(r.protein_g) ?? 0,
+    waterMl: num(r.water_ml) ?? 0,
+    demo: r.demo,
+  };
+}
 function errorOrThrow(error: unknown): never {
   if (error instanceof Error) throw error;
   if (typeof error === "object" && error !== null && "message" in error) {
@@ -413,7 +434,15 @@ export const supabaseRepository: Repository = {
     const userId = await requireUser();
     const now = new Date().toISOString();
     if (!userId) {
-      return { userId: "", timeZone: null, travel: "homeTimeZone", remindersEnabled: false, updatedAt: now };
+      return {
+        userId: "",
+        timeZone: null,
+        travel: "homeTimeZone",
+        remindersEnabled: false,
+        proteinTargetG: null,
+        waterTargetMl: null,
+        updatedAt: now,
+      };
     }
     const { data, error } = await getSupabase()
       .from("user_settings")
@@ -428,6 +457,8 @@ export const supabaseRepository: Repository = {
         timeZone: null,
         travel: "homeTimeZone",
         remindersEnabled: false,
+        proteinTargetG: null,
+        waterTargetMl: null,
         updatedAt: now,
       };
     }
@@ -436,12 +467,16 @@ export const supabaseRepository: Repository = {
       timeZone: row.time_zone,
       travel: row.travel,
       remindersEnabled: row.reminders_enabled,
+      proteinTargetG: num(row.protein_target_g),
+      waterTargetMl: num(row.water_target_ml),
       updatedAt: row.updated_at,
     };
   },
 
   async updateSettings(
-    patch: Partial<Pick<UserSettings, "timeZone" | "travel" | "remindersEnabled">>
+    patch: Partial<
+      Pick<UserSettings, "timeZone" | "travel" | "remindersEnabled" | "proteinTargetG" | "waterTargetMl">
+    >
   ): Promise<UserSettings> {
     const userId = await requireUser();
     if (!userId) throw new Error("Authentication required.");
@@ -450,6 +485,10 @@ export const supabaseRepository: Repository = {
       time_zone: patch.timeZone !== undefined ? patch.timeZone : existing.timeZone,
       travel: patch.travel ?? existing.travel,
       reminders_enabled: patch.remindersEnabled ?? existing.remindersEnabled,
+      protein_target_g:
+        patch.proteinTargetG !== undefined ? patch.proteinTargetG : existing.proteinTargetG,
+      water_target_ml:
+        patch.waterTargetMl !== undefined ? patch.waterTargetMl : existing.waterTargetMl,
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await getSupabase()
@@ -464,8 +503,46 @@ export const supabaseRepository: Repository = {
       timeZone: row.time_zone,
       travel: row.travel,
       remindersEnabled: row.reminders_enabled,
+      proteinTargetG: num(row.protein_target_g),
+      waterTargetMl: num(row.water_target_ml),
       updatedAt: row.updated_at,
     };
+  },
+
+  /* ---- daily protein / water intake ---- */
+
+  async listIntakes(): Promise<DailyIntake[]> {
+    const userId = await requireUser();
+    if (!userId) return [];
+    const { data, error } = await getSupabase()
+      .from("daily_intake")
+      .select("*")
+      .eq("user_id", userId)
+      .order("day", { ascending: false });
+    if (error) errorOrThrow(error);
+    return (data as DbDailyIntake[]).map(toIntake);
+  },
+
+  async saveIntake(input: IntakeInput): Promise<DailyIntake> {
+    const userId = await requireUser();
+    if (!userId) throw new Error("Authentication required.");
+    const { data, error } = await getSupabase()
+      .from("daily_intake")
+      .upsert(
+        {
+          user_id: userId,
+          day: input.day,
+          protein_g: input.proteinGrams,
+          water_ml: input.waterMl,
+          demo: input.demo ?? false,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,day" }
+      )
+      .select("*")
+      .single();
+    if (error) errorOrThrow(error);
+    return toIntake(data as DbDailyIntake);
   },
 
   /* ---- schedules (read + write) ---- */
@@ -545,6 +622,7 @@ export const supabaseRepository: Repository = {
       "schedules",
       "injection_logs",
       "weight_entries",
+      "daily_intake",
       "body_sites",
       "vials",
       "user_settings",

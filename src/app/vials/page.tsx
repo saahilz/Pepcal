@@ -2,14 +2,19 @@
 
 import Link from "next/link";
 import { useData } from "@/components/app-provider";
+import { useDiscretion } from "@/components/discretion";
 import { Badge, Button, Card, EmptyState } from "@/components/ui";
 import { PlusIcon, ChevronRightIcon } from "@/components/icons";
-import { amountLabel, concentrationLabel, formatDate } from "@/lib/format";
+import { FreshnessRing } from "@/components/freshness-ring";
+import { vialStock } from "@/lib/domain/vial-stock";
+import { amountLabel, concentrationLabel, formatDate, trimNumber } from "@/lib/format";
 import { localTodayDate } from "@/lib/format";
 
 export default function VialsPage() {
-  const { vials } = useData();
+  const { vials, injections } = useData();
+  const { mask } = useDiscretion();
   const today = localTodayDate();
+  const now = new Date();
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -39,14 +44,17 @@ export default function VialsPage() {
             }
           />
         ) : null}
-        {vials.map((v) => {
+        {vials.map((v, i) => {
           const expired = v.beyondUseDate !== null && v.beyondUseDate < today;
+          const stock = vialStock(v, injections.filter((i) => i.vialId === v.id));
           return (
             <Card key={v.id} className="overflow-hidden">
               <Link href={`/vials/${v.id}`} className="flex items-center gap-3 p-4 transition-colors hover:bg-surface-2/50 sm:p-5">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-base font-semibold">{v.name}</span>
+                    <span className="truncate text-base font-semibold">
+                      {mask(v.name, "vial", { index: i })}
+                    </span>
                     {v.demo ? <Badge tone="demo">Demo</Badge> : null}
                     {expired ? <Badge tone="bad">Beyond-use date passed</Badge> : null}
                   </div>
@@ -57,6 +65,15 @@ export default function VialsPage() {
                     ) : (
                       <span className="italic">not yet reconstituted</span>
                     )}
+                    {stock?.dosesRemaining != null ? (
+                      <span>
+                        ~{trimNumber(stock.remainingMl, 2)} mL left ·{" "}
+                        {stock.dosesRemaining} {stock.dosesRemaining === 1 ? "dose" : "doses"} at{" "}
+                        {trimNumber(stock.perDoseMl!, 3)} mL
+                      </span>
+                    ) : stock ? (
+                      <span>~{trimNumber(stock.remainingMl, 2)} mL left</span>
+                    ) : null}
                   </div>
                   <div className="mt-0.5 text-xs text-subtle">
                     {v.reconstitutedAt
@@ -65,6 +82,7 @@ export default function VialsPage() {
                     {v.beyondUseDate ? ` · beyond-use ${v.beyondUseDate}` : ""}
                   </div>
                 </div>
+                <FreshnessRing vial={v} now={now} size={40} className="shrink-0" />
                 <ChevronRightIcon className="h-5 w-5 shrink-0 text-subtle" />
               </Link>
             </Card>

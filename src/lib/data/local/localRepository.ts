@@ -11,8 +11,10 @@
 
 import { newId } from "../ids";
 import type {
+  DailyIntake,
   InjectionInput,
   InjectionLog,
+  IntakeInput,
   Repository,
   Schedule,
   ScheduleInput,
@@ -32,6 +34,7 @@ interface Envelope {
   injections: InjectionLog[];
   weights: WeightEntry[];
   schedules: Schedule[];
+  intakes: DailyIntake[];
   settings: UserSettings;
 }
 
@@ -43,6 +46,8 @@ function emptySettings(): UserSettings {
     timeZone: detectTimeZone(),
     travel: "homeTimeZone",
     remindersEnabled: false,
+    proteinTargetG: null,
+    waterTargetMl: null,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -63,13 +68,15 @@ function readDb(): Envelope {
       const parsed = JSON.parse(raw) as Partial<Envelope>;
       if (parsed && Array.isArray(parsed.vials) && Array.isArray(parsed.injections)) {
         // Envelopes written before a table existed lack its key; seed fake rows
-        // rather than showing an empty view (same rule for weights + schedules).
+        // rather than showing an empty view (same rule for weights + schedules
+        // + intakes).
         const fresh = buildSeedData();
         return {
           vials: parsed.vials,
           injections: parsed.injections,
           weights: Array.isArray(parsed.weights) ? parsed.weights : fresh.weights,
           schedules: Array.isArray(parsed.schedules) ? parsed.schedules : fresh.schedules,
+          intakes: Array.isArray(parsed.intakes) ? parsed.intakes : fresh.intakes,
           settings: { ...emptySettings(), ...(parsed.settings ?? {}) },
         };
       }
@@ -83,12 +90,12 @@ function readDb(): Envelope {
     injections: seeded.injections,
     weights: seeded.weights,
     schedules: seeded.schedules,
+    intakes: seeded.intakes,
     settings: emptySettings(),
   };
   writeDb(db);
   return db;
 }
-
 export const localDemoRepository: Repository = {
   kind: "demo",
 
@@ -242,12 +249,34 @@ export const localDemoRepository: Repository = {
   },
 
   async updateSettings(
-    patch: Partial<Pick<UserSettings, "timeZone" | "travel" | "remindersEnabled">>
+    patch: Partial<
+      Pick<UserSettings, "timeZone" | "travel" | "remindersEnabled" | "proteinTargetG" | "waterTargetMl">
+    >
   ): Promise<UserSettings> {
     const db = readDb();
     db.settings = { ...db.settings, ...patch, updatedAt: new Date().toISOString() };
     writeDb(db);
     return db.settings;
+  },
+
+  async listIntakes(): Promise<DailyIntake[]> {
+    const { intakes } = readDb();
+    return [...intakes].sort((a, b) => b.day.localeCompare(a.day));
+  },
+
+  async saveIntake(input: IntakeInput): Promise<DailyIntake> {
+    const db = readDb();
+    const row: DailyIntake = {
+      day: input.day,
+      proteinGrams: input.proteinGrams,
+      waterMl: input.waterMl,
+      demo: input.demo ?? false,
+    };
+    const i = db.intakes.findIndex((x) => x.day === input.day);
+    if (i >= 0) db.intakes[i] = row;
+    else db.intakes.push(row);
+    writeDb(db);
+    return row;
   },
 
   async resetToDemoData(): Promise<void> {
@@ -257,12 +286,20 @@ export const localDemoRepository: Repository = {
       injections: seeded.injections,
       weights: seeded.weights,
       schedules: seeded.schedules,
+      intakes: seeded.intakes,
       settings: emptySettings(),
     });
   },
 
   async deleteAllUserData(): Promise<void> {
-    writeDb({ vials: [], injections: [], weights: [], schedules: [], settings: emptySettings() });
+    writeDb({
+      vials: [],
+      injections: [],
+      weights: [],
+      schedules: [],
+      intakes: [],
+      settings: emptySettings(),
+    });
   },
 
   async listSchedules(): Promise<Schedule[]> {

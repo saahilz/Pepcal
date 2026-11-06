@@ -18,6 +18,7 @@
 import type { AmountUnit } from "@/lib/domain/units";
 import type {
   BodySite,
+  DailyIntake,
   InjectionLog,
   IsoDate,
   IsoUtc,
@@ -34,6 +35,7 @@ export type RepoKind = "demo" | "supabase";
 
 export type {
   BodySite,
+  DailyIntake,
   InjectionLog,
   IsoDate,
   IsoUtc,
@@ -102,6 +104,15 @@ export interface ScheduleInput {
   enabled: boolean;
 }
 
+/** Fields a user submits when logging a day's protein / water. */
+export interface IntakeInput {
+  day: IsoDate;
+  proteinGrams: number;
+  waterMl: number;
+  /** Omit/`false` for user data; only the demo seeder sets this. */
+  demo?: boolean;
+}
+
 export interface Repository {
   readonly kind: RepoKind;
 
@@ -135,9 +146,22 @@ export interface Repository {
   saveWeight(input: WeightInput & { id?: string }): Promise<WeightEntry>;
   deleteWeight(id: string): Promise<void>;
 
+  /* ---- Daily protein / water intake ---- */
+  /** The user's logged days, most recent first. Empty until something is logged. */
+  listIntakes(): Promise<DailyIntake[]>;
+  /** Upsert: one row per (user, day). */
+  saveIntake(input: IntakeInput): Promise<DailyIntake>;
+
   /* ---- Settings ---- */
   getSettings(): Promise<UserSettings>;
-  updateSettings(patch: Partial<Pick<UserSettings, "timeZone" | "travel" | "remindersEnabled">>): Promise<UserSettings>;
+  updateSettings(
+    patch: Partial<
+      Pick<
+        UserSettings,
+        "timeZone" | "travel" | "remindersEnabled" | "proteinTargetG" | "waterTargetMl"
+      >
+    >
+  ): Promise<UserSettings>;
 
   /* ---- Demo data lifecycle ---- */
   /** Delete everything and reseed fictional demo data (demo repo only). */

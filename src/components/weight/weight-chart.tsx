@@ -19,6 +19,13 @@
  *    available from the keyboard (arrows / Home / End / Escape) with a polite
  *    live region announcing each stop.
  *
+ * Optional dose markers (`markers`, epoch ms) are annotation pins, not a
+ * second series: they project through the very same time scale (see
+ * domain/weight.ts projectMarkers), hang from the baseline in the warn colour
+ * (a secondary shape+position encoding, never colour-alone identity), and show
+ * a tooltip built from `markerContent` — a pure label function owned by the
+ * caller, so the chart never learns what an injection record is.
+ *
  * Weight is stored in kg; `unit` only changes what the labels say.
  */
 
@@ -27,6 +34,7 @@ import {
   buildWeightChart,
   fromKg,
   nearestPointIndex,
+  projectMarkers,
   weightLabel,
   type WeightPoint,
   type WeightUnit,
@@ -39,6 +47,14 @@ const MARKER_LIMIT = 60;
 const Y_LABEL_GAP = 8;
 /** Tooltip half-width ceiling — used to keep it inside the plot at the edges. */
 const TOOLTIP_CLAMP = 62;
+/** Dose pins live in this pixel band above the baseline, ±this wide to hit. */
+const PIN_BAND = 28;
+const PIN_HIT = 11;
+
+export interface MarkerTooltip {
+  title: string;
+  lines: string[];
+}
 
 function shortDate(at: number): string {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
@@ -56,14 +72,21 @@ export function WeightChart({
   points,
   unit,
   height = DEFAULT_HEIGHT,
+  markers,
+  markerContent,
 }: {
   points: WeightPoint[];
   unit: WeightUnit;
   height?: number;
+  /** Instants (epoch ms) to annotate with dose pins. */
+  markers?: number[];
+  /** Label text for the pin at `at`; returning an empty title hides the tip. */
+  markerContent?: (at: number) => MarkerTooltip | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState(-1);
+  const [activePin, setActivePin] = useState<number | null>(null);
 
   /* Measured, not guessed: the SVG is drawn in absolute pixels at exactly the
      container's width, so screen coordinates map 1:1 onto chart coordinates and
@@ -85,23 +108,60 @@ export function WeightChart({
     [points, width, height]
   );
 
+  /* Sorted once so an index stays stable across the array it was built from. */
+  const markerTimes = useMemo(
+    () => (markers && markers.length > 0 ? [...markers].sort((a, b) => a - b) : []),
+    [markers]
+  );
+  const pins = useMemo(
+    () => (geometry && markerTimes.length > 0 ? projectMarkers(geometry, markerTimes) : []),
+    [geometry, markerTimes]
+  );
+
   /* Touch has no "pointer left": a finger-lift fires pointerleave immediately
      after pointerup, so clearing on leave would dismiss the tooltip the user
      just asked for. A touch selection is therefore pinned, and dismissed by a
      tap outside the chart instead — or by Escape, or by blurring it. */
   useEffect(() => {
-    if (active < 0) return;
+    if (active < 0 && activePin === null) return;
     function onDocumentPointerDown(e: PointerEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setActive(-1);
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setActive(-1);
+        setActivePin(null);
+      }
     }
     document.addEventListener("pointerdown", onDocumentPointerDown);
     return () => document.removeEventListener("pointerdown", onDocumentPointerDown);
-  }, [active]);
+  }, [active, activePin]);
 
   /* `active` is an index into the series, which can shrink underneath it. */
   const activeIndex =
     geometry && active >= 0 && active < geometry.points.length ? active : -1;
   const activePoint = activeIndex >= 0 && geometry ? geometry.points[activeIndex] : null;
+
+  /* Likewise the pin index; a stale index (markers re-grouped under us) is
+     dropped, and an empty title means the caller has nothing to say. */
+  const pinIndex = activePin !== null && activePin < pins.length ? activePin : null;
+  const activePinAt = pinIndex !== null ? pins[pinIndex] : null;
+  const pinTip =
+    activePinAt && markerContent ? markerContent(activePinAt.at) : null;
+
+  /* Pin hit-testing is 2-D: pins live only in a short band above the baseline,
+     so the reading crosshair keeps the rest of the plot. */
+  function pinAt(x: number, y: number): number | null {
+    if (!geometry || pins.length === 0) return null;
+    if (y < geometry.plot.bottom - PIN_BAND || y > geometry.plot.bottom + 4) return null;
+    let best: number | null = null;
+    let bestDistance = PIN_HIT;
+    pins.forEach((p, i) => {
+      const d = Math.abs(p.x - x);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = i;
+      }
+    });
+    return best;
+  }
 
   const first = points[0];
   const last = points[points.length - 1];
@@ -127,36 +187,57 @@ export function WeightChart({
         height={height}
         role="img"
         tabIndex={0}
-        aria-label={`Weight over time. ${summary} Use the arrow keys to step through the readings.`}
+        aria-label={`Weight over time. ${summary}${
+          pins.length > 0
+            ? ` ${pins.length} dose marker${pins.length === 1 ? "" : "s"} sit on the baseline; the list under the chart reads them out.`
+            : ""
+        } Use the arrow keys to step through the readings.`
+        }
         className="block max-w-full select-none rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         onPointerMove={(e) => {
           if (!geometry) return;
-          setActive(nearestPointIndex(geometry.points, e.clientX - e.currentTarget.getBoundingClientRect().left));
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const pin = pinAt(x, e.clientY - rect.top);
+          setActivePin(pin);
+          if (pin === null) setActive(nearestPointIndex(geometry.points, x));
         }}
         onPointerDown={(e) => {
           if (!geometry) return;
-          setActive(nearestPointIndex(geometry.points, e.clientX - e.currentTarget.getBoundingClientRect().left));
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const pin = pinAt(x, e.clientY - rect.top);
+          setActivePin(pin);
+          if (pin === null) setActive(nearestPointIndex(geometry.points, x));
         }}
         onPointerLeave={(e) => {
-          if (e.pointerType !== "touch") setActive(-1);
+          if (e.pointerType !== "touch") {
+            setActive(-1);
+            setActivePin(null);
+          }
         }}
         onFocus={(e) => {
           /* Keyboard focus selects the latest reading as a starting point. A
              tap also focuses this element, and doing it there would fight the
              pointer handlers above — so only keyboard focus counts. */
           if (e.currentTarget.matches(":focus-visible")) {
-            setActive((i) => (i >= 0 ? i : points.length - 1));
+            setActive((i) => (i >= 0 || pinIndex !== null ? i : points.length - 1));
           }
         }}
-        onBlur={() => setActive(-1)}
+        onBlur={() => {
+          setActive(-1);
+          setActivePin(null);
+        }}
         onKeyDown={(e) => {
           if (!geometry) return;
           if (e.key === "ArrowRight") move(activeIndex < 0 ? points.length - 1 : activeIndex + 1);
           else if (e.key === "ArrowLeft") move(activeIndex < 0 ? points.length - 1 : activeIndex - 1);
           else if (e.key === "Home") move(0);
           else if (e.key === "End") move(points.length - 1);
-          else if (e.key === "Escape") setActive(-1);
-          else return;
+          else if (e.key === "Escape") {
+            setActive(-1);
+            setActivePin(null);
+          } else return;
           e.preventDefault();
         }}
       >
@@ -188,7 +269,7 @@ export function WeightChart({
               <path d={geometry.areaPath} fill="var(--brand)" fillOpacity={0.12} stroke="none" />
             ) : null}
 
-            {activePoint ? (
+            {activePoint && pinIndex === null ? (
               <line
                 x1={activePoint.x}
                 x2={activePoint.x}
@@ -221,6 +302,34 @@ export function WeightChart({
                   />
                 ))
               : null}
+
+            {/* Dose pins: annotation marks, so shape (a stem with a head, on
+                the baseline) and position carry them — colour is secondary. */}
+            {pins.map((p, i) => {
+              const on = pinIndex === i;
+              return (
+                <g key={`pin-${p.at}`}>
+                  <line
+                    x1={p.x}
+                    x2={p.x}
+                    y1={p.yBottom - (on ? 26 : 18)}
+                    y2={p.yBottom}
+                    stroke="var(--warn)"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeOpacity={on ? 1 : 0.9}
+                  />
+                  <circle
+                    cx={p.x}
+                    cy={p.yBottom - (on ? 26 : 18)}
+                    r={on ? 5 : 3.5}
+                    fill="var(--warn)"
+                    stroke="var(--surface)"
+                    strokeWidth={2}
+                  />
+                </g>
+              );
+            })}
 
             {geometry.yTicks.map((t) => (
               <text
@@ -262,7 +371,33 @@ export function WeightChart({
         ) : null}
       </svg>
 
-      {activePoint && geometry ? (
+      {pinTip && activePinAt ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute z-20 rounded-xl border border-line bg-surface px-2.5 py-1.5 shadow-pop"
+          style={(() => {
+            /* The tip can out-width the plot on phones, so near either edge it
+               pins to that edge instead of centring on the pin. ~200px is the
+               estimated widest tip; centring only applies while it must fit. */
+            const top = Math.max(8, activePinAt.yBottom - 42);
+            const est = 200;
+            if (activePinAt.x < est / 2 + 8) {
+              return { left: 8, top, transform: "translateY(-100%)", maxWidth: "min(240px, calc(100% - 16px))" };
+            }
+            if (activePinAt.x > width - est / 2 - 8) {
+              return { left: "auto", right: 8, top, transform: "translateY(-100%)", maxWidth: "min(240px, calc(100% - 16px))" };
+            }
+            return { left: activePinAt.x, top, transform: "translate(-50%,-100%)", maxWidth: "min(240px, calc(100% - 16px))" };
+          })()}
+        >
+          <p className="text-sm font-semibold tabular-nums">{pinTip.title}</p>
+          {pinTip.lines.map((line, i) => (
+            <p key={i} className="text-xs leading-snug text-muted">
+              {line}
+            </p>
+          ))}
+        </div>
+      ) : activePoint && geometry ? (
         <div
           aria-hidden
           className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-xl border border-line bg-surface px-2.5 py-1.5 shadow-pop"
@@ -280,13 +415,30 @@ export function WeightChart({
         </div>
       ) : null}
 
+      {/* Screen-reader access to the pins: the same labels hover shows, in a
+          hidden list (hover and touch cannot reach an SVG <g> reliably). */}
+      {pins.length > 0 && markerContent ? (
+        <ul className="sr-only">
+          {pins.map((p) => {
+            const tip = markerContent(p.at);
+            return (
+              <li key={`pin-text-${p.at}`}>
+                {tip ? `${tip.title}. ${tip.lines.join(". ")}` : shortDate(p.at)}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
       {/* The visual tooltip is decorative; this is what a screen reader hears. */}
       <p aria-live="polite" className="sr-only">
-        {activePoint
-          ? `${weightLabel(activePoint.kg, unit)}, recorded ${formatDate(
-              new Date(activePoint.at).toISOString()
-            )}`
-          : ""}
+        {pinTip
+          ? `${pinTip.title}. ${pinTip.lines.join(". ")}`
+          : activePoint
+            ? `${weightLabel(activePoint.kg, unit)}, recorded ${formatDate(
+                new Date(activePoint.at).toISOString()
+              )}`
+            : ""}
       </p>
     </div>
   );

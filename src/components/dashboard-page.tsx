@@ -3,11 +3,21 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useData } from "@/components/app-provider";
+import { BlurDose, useDiscretion } from "@/components/discretion";
 import { Badge, Button, Card, CardHeader, EmptyState } from "@/components/ui";
 import { CalcIcon, CalendarIcon, ChevronRightIcon, LogIcon, VialIcon } from "@/components/icons";
 import { amountLabel, formatTime, relativeDayLabel } from "@/lib/format";
 import { CLINICAL_CONFIRM } from "@/lib/domain/disclaimer";
 import { formatCountdown, injectionGaugeFraction, occurrencesWithin } from "@/lib/domain/schedule";
+import { useSerumHalfLife } from "@/components/use-serum-half-life";
+import { SerumLevelSection } from "@/components/serum-level-section";
+import { SyringeScale } from "@/components/syringe-scale";
+import { toMcg } from "@/lib/domain/units";
+import { serumAmountLabel } from "@/components/serum-level-chart";
+import { toSerumDoses, totalActiveMcg } from "@/lib/domain/half-life";
+import { vialStock, type VialStock } from "@/lib/domain/vial-stock";
+import { FreshnessRing } from "@/components/freshness-ring";
+import { ProteinWaterWidget } from "@/components/protein-water-widget";
 
 /** How far ahead the "upcoming injections" list looks. Fixed at render time. */
 const UPCOMING_WINDOW_MS = 45 * 86_400_000;
@@ -42,7 +52,9 @@ function useMinuteTick(): number {
 
 export function DashboardPage() {
   const { vials, injections, schedules } = useData();
+  const { mask } = useDiscretion();
   useMinuteTick();
+  const serum = useSerumHalfLife();
 
   const now = new Date();
   const upcoming = occurrencesWithin(
@@ -54,6 +66,10 @@ export function DashboardPage() {
   const todayLogs = injections.filter((i) => isSameLocalDay(i.administeredAt, now));
   const activeVials = vials.filter((v) => v.concentrationMcgPerMl !== null);
   const recent = injections.slice(0, 6);
+
+  const doses = toSerumDoses(injections);
+  const estActive = doses.length > 0 ? serumAmountLabel(totalActiveMcg(doses, now.getTime(), serum.hours)) : null;
+  const stocks = new Map(vials.map((v) => [v.id, vialStock(v, injections.filter((i) => i.vialId === v.id))]));
 
   const greeting =
     now.getHours() < 12 ? "Good morning" : now.getHours() < 18 ? "Good afternoon" : "Good evening";
@@ -74,6 +90,11 @@ export function DashboardPage() {
             <span className="dashboard-signal-chip">
               {now.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
             </span>
+            {estActive !== null ? (
+              <span className="dashboard-signal-chip" title={`Modelled from logged doses at a ${serum.hours}-hour half-life you chose — an estimate, not a blood measurement.`}>
+                Est. Active: <strong>{estActive}</strong>
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="dashboard-hero-orbit" aria-hidden="true">
@@ -146,6 +167,10 @@ export function DashboardPage() {
         </Card>
       </div>
 
+      <SerumLevelSection serum={serum} now={now.getTime()} />
+
+      <ProteinWaterWidget />
+
       <Card>
         <CardHeader
           title="Upcoming injections"
@@ -170,6 +195,13 @@ export function DashboardPage() {
             >
               {upcoming.slice(0, 5).map(({ schedule, at }) => {
                 const frac = injectionGaugeFraction(at, now);
+                // Draw volume for a scheduled dose = amount ÷ the linked vial's
+                // recorded concentration. No vial/concentration ⇒ no syringe.
+                const svial = schedule.vialId ? vials.find((v) => v.id === schedule.vialId) : undefined;
+                const drawMl =
+                  svial?.concentrationMcgPerMl != null && svial.concentrationMcgPerMl > 0
+                    ? toMcg(schedule.amount, schedule.amountUnit) / svial.concentrationMcgPerMl
+                    : null;
                 return (
                   <li
                     key={`${schedule.id}-${at.toISOString()}`}
@@ -186,8 +218,12 @@ export function DashboardPage() {
                       {SCHED_AT.format(at)}
                     </span>
                     <span className="w-full truncate text-[11px] text-muted">
-                      {schedule.vialNameSnapshot ?? "Schedule"}
+                      {mask(schedule.vialNameSnapshot, "protocol", {
+                        seed: schedule.id,
+                        fallback: "Schedule",
+                      })}
                     </span>
+                    {drawMl !== null ? <SyringeScale volumeMl={drawMl} compact /> : null}
                     <span className="text-xs font-semibold tabular-nums text-brand">
                       {formatCountdown(at, now)}
                       <span className="sr-only"> until this injection</span>
@@ -230,14 +266,14 @@ export function DashboardPage() {
                         {relativeDayLabel(i.administeredAt)} · {formatTime(i.administeredAt)}
                       </p>
                       <p className="truncate text-xs text-muted">
-                        {i.vialNameSnapshot ?? "No linked vial"}
+                        {i.vialNameSnapshot ? mask(i.vialNameSnapshot) : "No linked vial"}
                         {i.location?.label ? ` · ${i.location.label}` : ""}
                       </p>
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-sm font-semibold tabular-nums">
-                      {amountLabel(i.amount, i.amountUnit)}
+                      <BlurDose>{amountLabel(i.amount, i.amountUnit)}</BlurDose>
                     </p>
                     {i.demo ? <Badge tone="demo">Demo</Badge> : null}
                   </div>
@@ -279,16 +315,20 @@ export function DashboardPage() {
                       <span className="recent-avatar"><VialIcon className="h-4 w-4" /></span>
                       <span className="min-w-0">
                         <span className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium">{v.name}</span>
+                          <span className="truncate text-sm font-medium">
+                            {mask(v.name, "compound")}
+                          </span>
                           {v.demo ? <Badge tone="demo">Demo</Badge> : null}
                         </span>
                         <span className="block text-xs text-muted">
                           {v.concentrationMgPerMl != null
                             ? `${Number(v.concentrationMgPerMl.toFixed(3))} mg/mL`
                             : "Not reconstituted yet"}
+                          {dosesLeftLabel(stocks.get(v.id))}
                         </span>
                       </span>
                     </div>
+                    <FreshnessRing vial={v} now={now} size={32} className="shrink-0" />
                     <ChevronRightIcon className="h-4.5 w-4.5 shrink-0 text-subtle" />
                   </Link>
                 </li>
@@ -303,6 +343,12 @@ export function DashboardPage() {
       </p>
     </div>
   );
+}
+
+/** "~N doses left" from derived stock; "" when there is no dose size to divide by yet. */
+function dosesLeftLabel(stock: VialStock | null | undefined): string {
+  if (stock?.dosesRemaining == null) return "";
+  return ` · ~${stock.dosesRemaining} ${stock.dosesRemaining === 1 ? "dose" : "doses"} left`;
 }
 
 function QuickAction({

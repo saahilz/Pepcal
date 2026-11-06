@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useData } from "@/components/app-provider";
+import { BlurDose, useDiscretion } from "@/components/discretion";
 import { useToast } from "@/components/toast-provider";
 import { Badge, Button, Card, EmptyState, Select } from "@/components/ui";
 import { EditIcon, LogIcon, TrashIcon } from "@/components/icons";
@@ -10,6 +11,7 @@ import { amountLabel, formatDateTime, relativeDayLabel } from "@/lib/format";
 
 export default function HistoryPage() {
   const { injections, vials, deleteInjection } = useData();
+  const { mask } = useDiscretion();
   const { show } = useToast();
   const [vialFilter, setVialFilter] = useState("all");
 
@@ -46,9 +48,9 @@ export default function HistoryPage() {
             className="w-56"
           >
             <option value="all">All peptides</option>
-            {vials.map((v) => (
+            {vials.map((v, i) => (
               <option key={v.id} value={v.id}>
-                {v.name}
+                {mask(v.name, "vial", { index: i })}
               </option>
             ))}
           </Select>
@@ -85,8 +87,8 @@ export default function HistoryPage() {
                 {i.demo ? <Badge tone="demo">Demo</Badge> : null}
               </div>
               <p className="mt-0.5 truncate text-sm text-muted">
-                {amountLabel(i.amount, i.amountUnit)}
-                {i.vialNameSnapshot ? ` · ${i.vialNameSnapshot}` : ""}
+                <BlurDose>{amountLabel(i.amount, i.amountUnit)}</BlurDose>
+                {i.vialNameSnapshot ? ` · ${mask(i.vialNameSnapshot)}` : ""}
                 {i.location?.label ? ` · ${i.location.label}` : ""}
               </p>
               {i.notes ? <p className="mt-0.5 truncate text-xs text-subtle">{i.notes}</p> : null}

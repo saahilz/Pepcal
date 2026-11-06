@@ -136,6 +136,10 @@ export interface WeightChartGeometry {
   xTicks: { at: number; x: number }[];
   minKg: number;
   maxKg: number;
+  /** The real-time window the x scale was built from (t0..t1 of the series). */
+  timeDomain: { t0: number; t1: number };
+  /** Pixels-per-millisecond of the x scale; 0 when a single reading centered. */
+  xScale: number;
 }
 
 /**
@@ -179,7 +183,10 @@ export function buildWeightChart(points: WeightPoint[], box: ChartBox): WeightCh
   const t0 = points[0].at;
   const t1 = points[points.length - 1].at;
   const tSpan = t1 - t0;
-  const xFor = (at: number) => (tSpan === 0 ? left + plotWidth / 2 : left + ((at - t0) / tSpan) * plotWidth);
+  // Exported so annotations (dose markers) land on the same time scale the
+  // readings use, without rebuilding the geometry here.
+  const xScale = tSpan === 0 ? 0 : plotWidth / tSpan;
+  const xFor = (at: number) => (tSpan === 0 ? left + plotWidth / 2 : left + (at - t0) * xScale);
 
   const chartPoints: ChartPoint[] = points.map((p) => ({ ...p, x: xFor(p.at), y: yFor(p.kg) }));
   const linePath = chartPoints
@@ -213,7 +220,69 @@ export function buildWeightChart(points: WeightPoint[], box: ChartBox): WeightCh
     xTicks,
     minKg,
     maxKg,
+    timeDomain: { t0, t1 },
+    xScale,
   };
+}
+
+/**
+ * The line's weight at instant `at` by interpolation — the series, not an
+ * individual reading ("weight change since previous dose" anchors here).
+ * Before the first reading the line does not exist, so this returns null.
+ */
+export function weightAtTime(points: WeightPoint[], at: number): number | null {
+  if (points.length === 0) return null;
+  // The line only exists between the first and last reading.
+  if (at < points[0].at) return null;
+  if (at >= points[points.length - 1].at) return points[points.length - 1].kg;
+  for (let i = 1; i < points.length; i++) {
+    if (at <= points[i].at) {
+      const a = points[i - 1];
+      const b = points[i];
+      if (b.at === a.at) return b.kg;
+      return a.kg + ((at - a.at) / (b.at - a.at)) * (b.kg - a.kg);
+    }
+  }
+  return points[points.length - 1].kg;
+}
+
+export interface ProjectedMarker {
+  /** Index the marker was projected from. */
+  i: number;
+  at: number;
+  x: number;
+  /** Plot-bottom pixel y; markers hang from it in the chart. */
+  yBottom: number;
+  /**
+   * True when the instant falls inside the window the line is drawn across.
+   * Outside, the pin is clamped to the edge of the plot and must read as an
+   * edge marker (the tooltip still says what happened).
+   */
+  inBand: boolean;
+}
+
+/**
+ * Project annotation instants (e.g. logged doses) through the geometry's own
+ * time scale. They share the x mapping the readings use — no second axis.
+ */
+export function projectMarkers(
+  geometry: WeightChartGeometry,
+  instants: number[]
+): ProjectedMarker[] {
+  return instants.map((at, i) => {
+    const raw =
+      geometry.xScale === 0
+        ? geometry.plot.left + geometry.plot.width / 2
+        : geometry.plot.left + (at - geometry.timeDomain.t0) * geometry.xScale;
+    const x = Math.max(geometry.plot.left, Math.min(geometry.plot.right, raw));
+    return {
+      i,
+      at,
+      x,
+      yBottom: geometry.plot.bottom,
+      inBand: at >= geometry.timeDomain.t0 && at <= geometry.timeDomain.t1,
+    };
+  });
 }
 
 /** Nearest reading to a pixel x — the crosshair snaps to data, never to the gap. */

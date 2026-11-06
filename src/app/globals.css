@@ -600,6 +600,37 @@ button {
   .action-card { min-height: 132px; padding: 0.85rem; }
 }
 
+/* Clinical print sheet: the page keeps its on-screen look in the browser,
+   but on paper (Save-as-PDF too) it flattens to ink-on-white regardless of
+   theme — print backgrounds are unreliable otherwise. */
+@media print {
+  .shell-header,
+  .mobile-nav,
+  .demo-banner { display: none !important; }
+  .print-sheet { border: none !important; box-shadow: none !important; }
+  body { background: #ffffff; }
+  /* Force the token palette to its light values — print backgrounds are
+     unreliable, and a paper copy should be ink-on-white in either theme.
+     Selectors mirror the app's own (.dark class on <html>). */
+  :root,
+  html.dark {
+    --background: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f2f2f0;
+    --line: #cccccc;
+    --line-strong: #999999;
+    --foreground: #111111;
+    --muted: #444444;
+    --subtle: #666666;
+    --brand: #0b4f49;
+    --brand-soft: #e4f1ee;
+    --info: #1f4e8f;
+    --ok: #1c6b46;
+    --warn: #7a5200;
+    --bad: #8f1d21;
+  }
+}
+
 /* Respect users who prefer reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   *,

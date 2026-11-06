@@ -3,11 +3,14 @@
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useData } from "@/components/app-provider";
+import { useDiscretion } from "@/components/discretion";
 import { useToast } from "@/components/toast-provider";
 import { Badge, Button, Card, EmptyState } from "@/components/ui";
 import { LogIcon, EditIcon, TrashIcon } from "@/components/icons";
-import { amountLabel, concentrationLabel, formatDate, formatTime, relativeDayLabel } from "@/lib/format";
+import { amountLabel, concentrationLabel, formatDate, formatTime, relativeDayLabel, trimNumber } from "@/lib/format";
 import { localTodayDate } from "@/lib/format";
+import { vialStock } from "@/lib/domain/vial-stock";
+import { FreshnessRing } from "@/components/freshness-ring";
 
 export default function VialDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +19,7 @@ export default function VialDetailPage() {
   const router = useRouter();
 
   const vial = vials.find((v) => v.id === id);
+  const { mask } = useDiscretion();
   const today = localTodayDate();
 
   if (!vial) {
@@ -30,9 +34,12 @@ export default function VialDetailPage() {
 
   const vialLogs = injections.filter((i) => i.vialId === id).slice(0, 5);
   const expired = vial.beyondUseDate !== null && vial.beyondUseDate < today;
+  const stock = vialStock(vial, injections.filter((i) => i.vialId === id));
 
   const handleDelete = async () => {
-    const ok = window.confirm(`Delete “${vial.name}” and its vial record? Injection history is kept but unlinked.`);
+    const ok = window.confirm(
+      `Delete “${mask(vial.name, "vial", { index: vials.findIndex((v) => v.id === id) })}” and its vial record? Injection history is kept but unlinked.`
+    );
     if (!ok) return;
     try {
       await deleteVial(vial.id);
@@ -47,7 +54,9 @@ export default function VialDetailPage() {
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{vial.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {mask(vial.name, "vial", { index: vials.findIndex((v) => v.id === id) })}
+          </h1>
           {vial.demo ? <Badge tone="demo">Demo</Badge> : null}
           {expired ? <Badge tone="bad">Beyond-use date passed</Badge> : null}
         </div>
@@ -70,8 +79,32 @@ export default function VialDetailPage() {
         <Row label="Diluent added">
           {vial.diluentMl != null ? `${trimDisplay(vial.diluentMl)} mL` : "—"}
         </Row>
+        {stock ? (
+          <Row label="Estimated remaining">
+            <span className="font-semibold tabular-nums">{trimNumber(stock.remainingMl, 2)} mL</span>
+            {stock.dosesRemaining != null ? (
+              <span className="block text-xs text-subtle">
+                {stock.dosesRemaining} {stock.dosesRemaining === 1 ? "dose" : "doses"} at{" "}
+                {trimNumber(stock.perDoseMl!, 3)} mL — your most recent logged draw. Theoretical,
+                excludes dead space.
+              </span>
+            ) : (
+              <span className="block text-xs text-subtle">
+                {trimNumber(vial.diluentMl! - stock.remainingMl, 2)} mL summed from logged
+                injections. Log doses with this vial linked to deduct them.
+              </span>
+            )}
+          </Row>
+        ) : null}
         <Row label="Reconstituted">
-          {vial.reconstitutedAt ? `${formatDate(vial.reconstitutedAt)} at ${formatTime(vial.reconstitutedAt)}` : "—"}
+          <span className="flex flex-col items-end gap-1">
+            <span>
+              {vial.reconstitutedAt
+                ? `${formatDate(vial.reconstitutedAt)} at ${formatTime(vial.reconstitutedAt)}`
+                : "—"}
+            </span>
+            {vial.reconstitutedAt ? <FreshnessRing vial={vial} size={34} /> : null}
+          </span>
         </Row>
         <Row label="Beyond-use date">
           {vial.beyondUseDate ? (

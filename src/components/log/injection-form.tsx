@@ -17,8 +17,12 @@ import { parseDecimal } from "@/lib/domain/calculator";
 import type { InjectionInput, InjectionLog, ScheduleInput } from "@/lib/data/repository";
 import { isoToLocalInputValue, localInputToIso, relativeDayLabel, trimNumber } from "@/lib/format";
 import { repeatPattern } from "@/lib/domain/schedule";
+import { zoneForLabel } from "@/lib/domain/site";
 import { Button, Card, Field, Input, Select, Segmented, Textarea } from "@/components/ui";
+import { BodySitePicker } from "@/components/body-site-picker";
+import { SyringeScale } from "@/components/syringe-scale";
 import { useData } from "@/components/app-provider";
+import { useDiscretion } from "@/components/discretion";
 import { useToast } from "@/components/toast-provider";
 
 const UNITS: { value: AmountUnit; label: string }[] = [
@@ -44,6 +48,7 @@ export function InjectionForm({
 }) {
   const router = useRouter();
   const { vials, injections, saveInjection, saveSchedule } = useData();
+  const { mask } = useDiscretion();
   const { show } = useToast();
 
   const [vialId, setVialId] = useState<string>(existing?.vialId ?? prefill?.vialId ?? "");
@@ -58,6 +63,21 @@ export function InjectionForm({
   const [locationLabel, setLocationLabel] = useState(existing?.location?.label ?? "");
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  /* Tap a zone or type text — both set locationLabel. The zone table supplies
+     the marker coordinates, so an old hand-typed "Left abdomen" gains its
+     coords on save, and custom text keeps the record's own coords. */
+  const chosenZone = zoneForLabel(locationLabel);
+  const location = chosenZone
+    ? { view: "front" as const, x: chosenZone.x, y: chosenZone.y, label: chosenZone.label }
+    : locationLabel.trim() === ""
+      ? null
+      : {
+          view: existing?.location?.view ?? null,
+          x: existing?.location?.x ?? null,
+          y: existing?.location?.y ?? null,
+          label: locationLabel.trim(),
+        };
 
   const selectedVial = vials.find((v) => v.id === vialId);
   // Repeat choice: log once (default), weekly on the administered day, or
@@ -103,7 +123,6 @@ export function InjectionForm({
     if (Object.keys(errs).length > 0) return;
 
     const vial = vials.find((v) => v.id === vialId);
-    const locationLabelTrim = locationLabel.trim();
     const input: InjectionInput & { id?: string } = {
       id: existing?.id,
       vialId: vialId || null,
@@ -116,12 +135,7 @@ export function InjectionForm({
       administeredAt: adminIso,
       scheduledTimeUtc: existing?.scheduledTimeUtc ?? null,
       scheduleId: existing?.scheduleId ?? null,
-      location:
-        locationLabelTrim === ""
-          ? existing?.location?.label
-            ? { view: existing.location.view, x: existing.location.x, y: existing.location.y, label: null }
-            : null
-          : { view: existing?.location?.view ?? null, x: existing?.location?.x ?? null, y: existing?.location?.y ?? null, label: locationLabelTrim },
+      location,
       notes: notes.trim() === "" ? null : notes.trim(),
     };
     try {
@@ -181,9 +195,9 @@ export function InjectionForm({
         >
           <Select id="inj-vial" value={vialId} onChange={(e) => pickVial(e.target.value)}>
             <option value="">No vial linked</option>
-            {vials.map((v) => (
+            {vials.map((v, i) => (
               <option key={v.id} value={v.id}>
-                {v.name}
+                {mask(v.name, "vial", { index: i })}
                 {v.concentrationMcgPerMl != null
                   ? ` · ${Number(v.concentrationMgPerMl?.toFixed(3))} mg/mL`
                   : " · not reconstituted"}
@@ -225,13 +239,16 @@ export function InjectionForm({
         </div>
 
         {volumeMl !== null ? (
-          <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm">
-            Draw volume this implies:{" "}
-            <span className="font-semibold tabular-nums">{trimNumber(volumeMl, 4)} mL</span>{" "}
-            <span className="text-xs text-muted">
-              ({selectedVial?.name ?? "vial snapshot"})
-            </span>
-          </p>
+          <div className="rounded-xl bg-surface-2 px-3 py-3">
+            <p className="text-sm">
+              Draw volume this implies:{" "}
+              <span className="font-semibold tabular-nums">{trimNumber(volumeMl, 4)} mL</span>{" "}
+              <span className="text-xs text-muted">
+                ({selectedVial?.name ?? "vial snapshot"})
+              </span>
+            </p>
+            <SyringeScale volumeMl={volumeMl} className="mt-3" />
+          </div>
         ) : null}
 
         <Field
@@ -248,7 +265,7 @@ export function InjectionForm({
         <Field
           label="Where it went in (optional)"
           htmlFor="inj-loc"
-          hint="Free text now; tap-to-mark on a body map is next. This is documentation only — no site is endorsed or recommended."
+          hint="Tap a zone on the body map, or type your own wording. Documentation only — no site is endorsed or recommended."
         >
           <Input
             id="inj-loc"
@@ -258,6 +275,13 @@ export function InjectionForm({
             autoComplete="off"
           />
         </Field>
+
+        <BodySitePicker
+          label={locationLabel}
+          injections={injections.map((i) => ({ administeredAt: i.administeredAt, location: i.location }))}
+          onSelect={(zone) => setLocationLabel(zone.label)}
+        />
+
 
         {usedLabels.length > 0 ? (
           <div className="flex flex-col gap-1.5">

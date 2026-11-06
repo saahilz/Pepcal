@@ -6,9 +6,11 @@ import {
   fromKg,
   nearestPointIndex,
   niceStep,
+  projectMarkers,
   summarizeWeight,
   toKg,
   toWeightPoints,
+  weightAtTime,
   weightDeltaLabel,
   weightLabel,
   type WeightPoint,
@@ -190,6 +192,48 @@ describe("buildWeightChart", () => {
       expect(t.y).toBeGreaterThanOrEqual(g.plot.top - 0.001);
       expect(t.y).toBeLessThanOrEqual(g.plot.bottom + 0.001);
     }
+  });
+});
+
+describe("projectMarkers", () => {
+  const series = [point("a", 1, 88), point("b", 5, 86), point("c", 9, 84)];
+  const g = buildWeightChart(series, { width: 600, height: 240 })!;
+
+  it("places a marker on the same time scale as the readings", () => {
+    // Day 5 (matching point b) must land at b's x exactly.
+    const [m] = projectMarkers(g, [point("x", 5, 0).at]);
+    expect(m.x).toBeCloseTo(g.points[1].x, 6);
+    expect(m.inBand).toBe(true);
+    expect(m.yBottom).toBe(g.plot.bottom);
+  });
+
+  it("clamps markers outside the window to the plot edges", () => {
+    const before = projectMarkers(g, [point("z", -30, 0).at])[0];
+    const after = projectMarkers(g, [point("z", 40, 0).at])[0];
+    expect(before.x).toBe(g.plot.left);
+    expect(before.inBand).toBe(false);
+    expect(after.x).toBe(g.plot.right);
+    expect(after.inBand).toBe(false);
+  });
+});
+
+describe("weightAtTime", () => {
+  const series = [point("a", 1, 88), point("b", 5, 86), point("c", 9, 84)];
+
+  it("interpolates the line between readings", () => {
+    // Halfway day 1→5 = the line's day-3 weight, i.e. 87.
+    expect(weightAtTime(series, point("x", 3, 0).at)).toBeCloseTo(87, 6);
+  });
+
+  it("reads the endpoints exactly and holds the latest value past them", () => {
+    expect(weightAtTime(series, point("a", 1, 0).at)).toBe(88);
+    expect(weightAtTime(series, point("c", 9, 0).at)).toBe(84);
+    expect(weightAtTime(series, point("z", 40, 0).at)).toBe(84);
+  });
+
+  it("is null before the series exists, and for no readings at all", () => {
+    expect(weightAtTime(series, point("z", -30, 0).at)).toBeNull();
+    expect(weightAtTime([], 0)).toBeNull();
   });
 });
 

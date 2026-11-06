@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useData } from "@/components/app-provider";
+import { useDiscretion } from "@/components/discretion";
 import { Button, Card, Field, Input, Segmented } from "@/components/ui";
 import { amountLabel } from "@/lib/format";
 import { previewOccurrences, repeatPattern } from "@/lib/domain/schedule";
@@ -65,6 +66,7 @@ export function ScheduleDialog({
   defaultStartDate?: string;
 }) {
   const { vials, injections, saveSchedule } = useData();
+  const { mask } = useDiscretion();
 
   /** Dose prefill = what was last taken from this vial; never invented. */
   function doseDefault(id: string): { amount: string; unit: AmountUnit } {
@@ -119,7 +121,7 @@ export function ScheduleDialog({
     try {
       await saveSchedule(input);
       onCreated(
-        `${vial!.name} · ${amountLabel(input.amount, input.amountUnit)} · ${
+        `${mask(vial!.name)} · ${amountLabel(input.amount, input.amountUnit)} · ${
           repeat === "weekly"
             ? "weekly on " + WEEKDAY_FMT.format(new Date(`${startDate}T12:00:00`))
             : repeat === "biweekly"
@@ -164,11 +166,11 @@ export function ScheduleDialog({
             id="sched-vial"
             className="h-12 w-full rounded-xl border border-line bg-surface px-3 text-sm"
             value={vialId}
-            onChange={(e) => setVialId(e.target.value)}
+            onChange={(e) => onVialChange(e.target.value)}
           >
-            {vials.map((x) => (
+            {vials.map((x, i) => (
               <option key={x.id} value={x.id}>
-                {x.name}
+                {mask(x.name, "vial", { index: i })}
               </option>
             ))}
           </select>

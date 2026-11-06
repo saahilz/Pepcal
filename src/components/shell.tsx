@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRef } from "react";
 import type { ComponentType, SVGProps } from "react";
 import { useData } from "./app-provider";
+import { useDiscretion } from "./discretion";
 import { useTheme } from "./theme-provider";
 import { Spinner } from "./ui";
 import { SignInCard } from "./auth/sign-in-card";
@@ -39,9 +41,29 @@ const NAV: NavItem[] = [
 ];
 
 function Brand() {
+  const { on, toggle } = useDiscretion();
+  const lastTap = useRef(0);
+
+  /* Double-tap the logo to flip discretion mode without leaving the page.
+     The link click itself (single tap) still navigates — the toggle only
+     fires on the second tap within the window. */
+  function onTap(e: React.MouseEvent) {
+    const now = Date.now();
+    if (now - lastTap.current < 400) {
+      e.preventDefault();
+      toggle();
+      lastTap.current = 0;
+    } else {
+      lastTap.current = now;
+    }
+  }
+
   return (
     <Link
       href="/dashboard"
+      onClick={onTap}
+      title={on ? "Discretion mode on — double-tap to turn it off" : "Double-tap to hide names"}
+      aria-label={on ? "Pepcal — discretion mode is on" : "Pepcal"}
       className="tap-slop flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-brand"
     >
       <span className="brand-mark flex h-9 w-9 items-center justify-center rounded-[1.05rem] text-sm font-bold text-brand-fg">

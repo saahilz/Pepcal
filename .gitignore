@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# local scratch/archive (moved out of repo root 2026-11-05)
+/_archive/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

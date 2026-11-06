@@ -11,7 +11,7 @@
  * the amounts mirror the calculator's own worked example only.
  */
 
-import type { InjectionLog, Schedule, Vial, WeightEntry } from "../types";
+import type { DailyIntake, InjectionLog, Schedule, Vial, WeightEntry } from "../types";
 
 export const DEMO_USER_ID = "local-demo-user";
 
@@ -41,6 +41,7 @@ export interface SeedData {
   injections: InjectionLog[];
   weights: WeightEntry[];
   schedules: Schedule[];
+  intakes: DailyIntake[];
 }
 
 export function buildSeedData(now: Date = new Date()): SeedData {
@@ -282,5 +283,32 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     weighIn(0, 82.1),
   ];
 
-  return { vials: [vialB, vialA], injections, weights, schedules };
+  /* Fictional daily companion logs for the last few days, so the protein /
+     water widget has something to draw in demo mode. Numbers are made up and
+     badged "Demo"; the targets they are shown against are the user's own
+     (defaults in src/lib/domain/intake.ts), never a recommendation. Days are
+     keyed the way the UI keys them: the viewer's local calendar date. */
+  const localDay = (daysAgo: number): string => {
+    const d = new Date(now.getTime());
+    d.setDate(d.getDate() - daysAgo);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+  };
+
+  const intake = (daysAgo: number, proteinGrams: number, waterMl: number): DailyIntake => ({
+    day: localDay(daysAgo),
+    proteinGrams,
+    waterMl,
+    demo: true,
+  });
+
+  const intakes: DailyIntake[] = [
+    intake(3, 78, 1900),
+    intake(2, 95, 2300),
+    intake(1, 110, 2600),
+    intake(0, 45, 1200),
+  ];
+
+  return { vials: [vialB, vialA], injections, weights, schedules, intakes };
 }

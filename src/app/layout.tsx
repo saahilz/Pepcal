@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider, themeNoFlashScript } from "@/components/theme-provider";
 import { DataProvider } from "@/components/app-provider";
+import { DiscretionProvider } from "@/components/discretion";
 import { ToastProvider } from "@/components/toast-provider";
 import { Shell } from "@/components/shell";
 
@@ -17,12 +18,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  /* Needed because a manifest's icon URLs are resolved against a base —
+     relative ones without it are a build error. Point NEXT_PUBLIC_SITE_URL
+     at the deployment; local dev falls back to this port. */
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: {
     default: "Pepcal",
     template: "%s · Pepcal",
   },
   description:
     "A reconstituted-peptide concentration calculator and injection record-keeper. Calculation and record-keeping only — no dosing or prescribing advice.",
+  /* iOS standalone: the Share-sheet "Add to Home Screen" install reads these;
+     Android/Chrome gets the same from the manifest at /manifest.webmanifest
+     (link-injected by Next), and /apple-touch-icon.png is found by convention. */
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Pepcal" },
 };
 
 export const viewport: Viewport = {
@@ -58,11 +67,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans">
         <ThemeProvider>
-          <DataProvider>
-            <ToastProvider>
-              <Shell>{children}</Shell>
-            </ToastProvider>
-          </DataProvider>
+          <DiscretionProvider>
+            <DataProvider>
+              <ToastProvider>
+                <Shell>{children}</Shell>
+              </ToastProvider>
+            </DataProvider>
+          </DiscretionProvider>
         </ThemeProvider>
       </body>
     </html>
